@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:typed_data'; // For Uint8List
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'package:saver_gallery/saver_gallery.dart'; // Import saver_gallery
 
 class PromptBar extends StatelessWidget {
   final TextEditingController controller;
@@ -89,7 +95,7 @@ class PromptBar extends StatelessWidget {
   void _showMediaOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey[850], // Dark background for the modal
+      backgroundColor: Colors.grey[850],
       builder: (BuildContext context) {
         return Container(
           height: 135,
@@ -107,6 +113,7 @@ class PromptBar extends StatelessWidget {
                 ),
                 onTap: () {
                   Navigator.pop(context);
+                  _pickMedia(context, ImageSource.camera);
                 },
               ),
               ListTile(
@@ -117,6 +124,7 @@ class PromptBar extends StatelessWidget {
                 ),
                 onTap: () {
                   Navigator.pop(context);
+                  _pickMedia(context, ImageSource.gallery);
                 },
               ),
             ],
@@ -125,4 +133,90 @@ class PromptBar extends StatelessWidget {
       },
     );
   }
+
+  void _pickMedia(BuildContext context, ImageSource source) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? pickedFile = await picker.pickImage(source: source);
+
+    if (pickedFile != null) {
+      File originalFile = File(pickedFile.path);
+
+      // Convert the picked file to Uint8List
+      Uint8List fileBytes = await originalFile.readAsBytes();
+
+      if (source == ImageSource.camera) {
+        // If the image is from the camera, save it to the gallery
+
+        // Get the app's document directory to save the image temporarily
+        Directory appDir = await getApplicationDocumentsDirectory();
+
+        // Create a unique file name using the timestamp to avoid overwriting files
+        String fileName =
+            'captured_${DateTime.now().millisecondsSinceEpoch}${path.extension(pickedFile.path)}';
+        String savedPath = path.join(appDir.path, fileName);
+
+        // Save the image to the gallery
+        SaveResult saveResult = await SaverGallery.saveImage(
+          fileBytes, // Provide the image as Uint8List
+          fileName: fileName, // Provide the file name
+          skipIfExists: false, // Don't skip if the file exists
+        );
+
+        //logging
+
+        print('Image saved to gallery with result: ${saveResult.isSuccess}');
+      } else if (source == ImageSource.gallery) {
+        // If the image is from the gallery, just print a message
+        print("Image selected from gallery: ${pickedFile.path}");
+      }
+    } else {
+      print("No image selected");
+    }
+  }
 }
+
+
+
+
+
+// before
+//   void _showMediaOptions(BuildContext context) {
+//     showModalBottomSheet(
+//       context: context,
+//       backgroundColor: Colors.grey[850], // Dark background for the modal
+//       builder: (BuildContext context) {
+//         return Container(
+//           height: 135,
+//           decoration: BoxDecoration(
+//             color: Colors.grey[850],
+//             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+//           ),
+//           child: Column(
+//             children: [
+//               ListTile(
+//                 leading: Icon(Icons.camera_alt, color: Colors.white),
+//                 title: Text(
+//                   'Use Camera',
+//                   style: TextStyle(color: Colors.white),
+//                 ),
+//                 onTap: () {
+//                   Navigator.pop(context);
+//                 },
+//               ),
+//               ListTile(
+//                 leading: Icon(Icons.photo, color: Colors.white),
+//                 title: Text(
+//                   'From Gallery',
+//                   style: TextStyle(color: Colors.white),
+//                 ),
+//                 onTap: () {
+//                   Navigator.pop(context);
+//                 },
+//               ),
+//             ],
+//           ),
+//         );
+//       },
+//     );
+//   }
+// }
