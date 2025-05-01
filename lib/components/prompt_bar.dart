@@ -1,22 +1,49 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'dart:typed_data'; // For Uint8List
+import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-import 'package:saver_gallery/saver_gallery.dart'; // Import saver_gallery
+import 'package:saver_gallery/saver_gallery.dart';
 
-class PromptBar extends StatelessWidget {
+class PromptBar extends StatefulWidget {
   final TextEditingController controller;
-  final void Function(String) onSend;
-  final bool isLoading; // New parameter to show loading state
+  final void Function(dynamic) onSend;
+  final bool isLoading;
+  final void Function(bool)? onFocusChange;
 
   const PromptBar({
     super.key,
     required this.controller,
     required this.onSend,
-    this.isLoading = false, // Default to false (no loading)
+    this.isLoading = false,
+    this.onFocusChange,
   });
+
+  @override
+  State<PromptBar> createState() => _PromptBarState();
+}
+
+class _PromptBarState extends State<PromptBar> {
+  late FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+
+    _focusNode.addListener(() {
+      if (widget.onFocusChange != null) {
+        widget.onFocusChange!(_focusNode.hasFocus);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,14 +56,15 @@ class PromptBar extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Color(0xFF1A1B1F), // Darker background
-                borderRadius: BorderRadius.circular(25), // More rounded corners
-                border: Border.all(color: Color(0xFF636363)),
+                color: const Color(0xFF1A1B1F),
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(color: const Color(0xFF636363)),
               ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 120),
                 child: TextField(
-                  controller: controller,
+                  controller: widget.controller,
+                  focusNode: _focusNode,
                   maxLines: null,
                   style: const TextStyle(
                     color: Color.fromARGB(255, 207, 206, 206),
@@ -53,9 +81,9 @@ class PromptBar extends StatelessWidget {
           const SizedBox(width: 8),
           GestureDetector(
             onTap: () {
-              if (controller.text.trim().isNotEmpty) {
-                onSend(controller.text.trim());
-                controller.clear();
+              if (widget.controller.text.trim().isNotEmpty) {
+                widget.onSend(widget.controller.text.trim());
+                widget.controller.clear();
               }
             },
             child: Container(
@@ -65,9 +93,7 @@ class PromptBar extends StatelessWidget {
                 color: Colors.greenAccent,
               ),
               child: Icon(
-                isLoading
-                    ? Icons.pause
-                    : Icons.send, // Change icon based on loading state
+                widget.isLoading ? Icons.pause : Icons.send,
                 color: Colors.black,
               ),
             ),
@@ -75,7 +101,7 @@ class PromptBar extends StatelessWidget {
           const SizedBox(width: 8),
           GestureDetector(
             onTap: () {
-              // Show media options (camera and gallery) when this button is pressed
+              _focusNode.unfocus();
               _showMediaOptions(context);
             },
             child: Container(
@@ -101,13 +127,13 @@ class PromptBar extends StatelessWidget {
           height: 135,
           decoration: BoxDecoration(
             color: Colors.grey[850],
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
               ListTile(
-                leading: Icon(Icons.camera_alt, color: Colors.white),
-                title: Text(
+                leading: const Icon(Icons.camera_alt, color: Colors.white),
+                title: const Text(
                   'Use Camera',
                   style: TextStyle(color: Colors.white),
                 ),
@@ -117,8 +143,8 @@ class PromptBar extends StatelessWidget {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.photo, color: Colors.white),
-                title: Text(
+                leading: const Icon(Icons.photo, color: Colors.white),
+                title: const Text(
                   'From Gallery',
                   style: TextStyle(color: Colors.white),
                 ),
@@ -139,84 +165,22 @@ class PromptBar extends StatelessWidget {
     final XFile? pickedFile = await picker.pickImage(source: source);
 
     if (pickedFile != null) {
-      File originalFile = File(pickedFile.path);
-
-      // Convert the picked file to Uint8List
-      Uint8List fileBytes = await originalFile.readAsBytes();
+      File imageFile = File(pickedFile.path);
 
       if (source == ImageSource.camera) {
-        // If the image is from the camera, save it to the gallery
-
-        // Get the app's document directory to save the image temporarily
-        Directory appDir = await getApplicationDocumentsDirectory();
-
-        // Create a unique file name using the timestamp to avoid overwriting files
+        Uint8List fileBytes = await imageFile.readAsBytes();
         String fileName =
             'captured_${DateTime.now().millisecondsSinceEpoch}${path.extension(pickedFile.path)}';
-        String savedPath = path.join(appDir.path, fileName);
-
-        // Save the image to the gallery
-        SaveResult saveResult = await SaverGallery.saveImage(
-          fileBytes, // Provide the image as Uint8List
-          fileName: fileName, // Provide the file name
-          skipIfExists: false, // Don't skip if the file exists
+        await SaverGallery.saveImage(
+          fileBytes,
+          fileName: fileName,
+          skipIfExists: false,
         );
-
-        //logging
-
-        print('Image saved to gallery with result: ${saveResult.isSuccess}');
-      } else if (source == ImageSource.gallery) {
-        // If the image is from the gallery, just print a message
-        print("Image selected from gallery: ${pickedFile.path}");
       }
+
+      widget.onSend(imageFile); // ✅ Send image to HomePage
     } else {
       print("No image selected");
     }
   }
 }
-
-
-
-
-
-// before
-//   void _showMediaOptions(BuildContext context) {
-//     showModalBottomSheet(
-//       context: context,
-//       backgroundColor: Colors.grey[850], // Dark background for the modal
-//       builder: (BuildContext context) {
-//         return Container(
-//           height: 135,
-//           decoration: BoxDecoration(
-//             color: Colors.grey[850],
-//             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-//           ),
-//           child: Column(
-//             children: [
-//               ListTile(
-//                 leading: Icon(Icons.camera_alt, color: Colors.white),
-//                 title: Text(
-//                   'Use Camera',
-//                   style: TextStyle(color: Colors.white),
-//                 ),
-//                 onTap: () {
-//                   Navigator.pop(context);
-//                 },
-//               ),
-//               ListTile(
-//                 leading: Icon(Icons.photo, color: Colors.white),
-//                 title: Text(
-//                   'From Gallery',
-//                   style: TextStyle(color: Colors.white),
-//                 ),
-//                 onTap: () {
-//                   Navigator.pop(context);
-//                 },
-//               ),
-//             ],
-//           ),
-//         );
-//       },
-//     );
-//   }
-// }

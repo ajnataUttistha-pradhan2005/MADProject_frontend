@@ -1,9 +1,9 @@
-import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mathsolver/components/gradient_Avatar.dart';
-import 'package:mathsolver/components/prompt_bar.dart'; // Import PromptBar
-import 'package:mathsolver/components/Loading_Widget.dart'; // Import the LoadingWidget
+import 'package:mathsolver/components/prompt_bar.dart';
+import 'package:mathsolver/components/Loading_Widget.dart';
 import 'package:mathsolver/components/welcome_intro.dart';
 
 class HomePage extends StatefulWidget {
@@ -15,49 +15,49 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final TextEditingController _controller = TextEditingController();
-  final List<String> _messages = [];
-  bool _isLoading = false; // Track loading state
-  final ScrollController _scrollController =
-      ScrollController(); // ScrollController
+  final List<Map<String, dynamic>> _messages = [];
+  final ScrollController _scrollController = ScrollController();
 
-  void _handleSend(String message) {
+  bool _isLoading = false;
+  bool _isTextBoxFocused = false;
+
+  void _handleSend(dynamic message) {
     setState(() {
-      _messages.add(message);
-      _isLoading = true; // Start loading when sending a message
+      _messages.add({
+        'type': message is String ? 'text' : 'image',
+        'content': message,
+        'fromUser': true,
+      });
+      _isLoading = true;
     });
 
-    // Scroll to the bottom immediately after the message is sent
     _scrollToBottom();
-
-    // Simulate a WebSocket response delay (replace with actual WebSocket code)
     _simulateWebSocketResponse();
   }
 
-  // Simulate a WebSocket response (you would replace this with your actual WebSocket code)
-  Future<void> _simulateWebSocketResponse() async {
-    // Simulate a 5-second delay to mimic WebSocket response time
-    await Future.delayed(const Duration(seconds: 5));
-
-    // Simulate the response text from the WebSocket
-    String response = "This is the WebSocket response text.";
-
-    // Update the UI after the WebSocket response
+  void _onTextBoxFocusChanged(bool focused) {
     setState(() {
-      _messages.add(response); // Add the response to the messages list
-      _isLoading = false; // Stop loading after receiving the response
+      _isTextBoxFocused = focused;
     });
+  }
 
-    // Scroll to the bottom after the WebSocket response is received
+  Future<void> _simulateWebSocketResponse() async {
+    await Future.delayed(const Duration(seconds: 5));
+    setState(() {
+      _messages.add({
+        'type': 'text',
+        'content': "This is the WebSocket response text.",
+        'fromUser': false,
+      });
+      _isLoading = false;
+    });
     _scrollToBottom();
   }
 
-  // Scroll to the bottom of the ListView
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
-      // Scroll to the last item (with a small offset to ensure visibility)
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent +
-            400, // Add a small offset to scroll up a bit
+        _scrollController.position.maxScrollExtent + 400,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
       );
@@ -90,81 +90,170 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Display WelcomeIntro only if _messages is empty
-          if (_messages.isEmpty) const WelcomeIntro(),
+      body: SafeArea(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 150),
+            padding: EdgeInsets.only(
+              bottom: 0,
+              // MediaQuery.of(context).viewInsets.bottom, this line very buggy
+            ),
 
-          // The list of messages
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController, // Set the scroll controller
-              padding: const EdgeInsets.all(16),
-              itemCount:
-                  _messages.length +
-                  (_isLoading ? 1 : 0), // Add 1 for the loading widget
-              itemBuilder: (context, index) {
-                // If loading, show the loading widget
-                if (_isLoading && index == _messages.length) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20.0),
-                    child: LoadingWidget(),
-                  );
-                }
+            child: Column(
+              children: [
+                if (_messages.isEmpty && !_isTextBoxFocused)
+                  const WelcomeIntro(),
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _messages.length + (_isLoading ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (_isLoading && index == _messages.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20.0),
+                          child: LoadingWidget(),
+                        );
+                      }
 
-                // Check if the message is the WebSocket response (for left-alignment)
-                bool isUserMessage = index % 2 == 0;
+                      final message = _messages[index];
+                      final isUser = message['fromUser'] ?? false;
+                      final type = message['type'];
+                      final content = message['content'];
 
-                return Align(
-                  alignment:
-                      isUserMessage
-                          ? Alignment
-                              .centerRight // User messages are right-aligned
-                          : Alignment
-                              .centerLeft, // WebSocket responses are left-aligned
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 5),
-                    child:
-                        isUserMessage
-                            ? Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF29292B),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                _messages[index],
-                                style: const TextStyle(
-                                  color: Color(0xFFB3B3B3),
-                                  fontFamily: "LexendDeca",
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            )
-                            : Text(
-                              _messages[index], // WebSocket response without box
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontFamily: "LexendDeca",
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                              ),
-                            ),
+                      return Align(
+                        alignment:
+                            isUser
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 5),
+                          child:
+                              type == 'text'
+                                  ? Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          isUser
+                                              ? const Color(0xFF29292B)
+                                              : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      content,
+                                      style: TextStyle(
+                                        color:
+                                            isUser
+                                                ? const Color(0xFFB3B3B3)
+                                                : Colors.white,
+                                        fontFamily: "LexendDeca",
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  )
+                                  : ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.file(
+                                      File(content.path),
+                                      width: 220,
+                                    ),
+                                  ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+                PromptBar(
+                  controller: _controller,
+                  onSend: _handleSend,
+                  isLoading: _isLoading,
+                  onFocusChange: _onTextBoxFocusChanged,
+                ),
+              ],
             ),
           ),
-
-          // Pass the isLoading state to the PromptBar to toggle the icon
-          PromptBar(
-            controller: _controller,
-            onSend: _handleSend,
-            isLoading: _isLoading, // Pass the loading state to toggle the icon
-          ),
-        ],
+        ),
       ),
     );
   }
 }
+
+// incase want before body 
+      // body: Column(
+      //   children: [
+      //     // Display WelcomeIntro only if _messages is empty
+      //     if (_messages.isEmpty) const WelcomeIntro(),
+
+      //     // The list of messages
+      //     Expanded(
+      //       child: ListView.builder(
+      //         controller: _scrollController, // Set the scroll controller
+      //         padding: const EdgeInsets.all(16),
+      //         itemCount:
+      //             _messages.length +
+      //             (_isLoading ? 1 : 0), // Add 1 for the loading widget
+      //         itemBuilder: (context, index) {
+      //           // If loading, show the loading widget
+      //           if (_isLoading && index == _messages.length) {
+      //             return Padding(
+      //               padding: const EdgeInsets.symmetric(vertical: 20.0),
+      //               child: LoadingWidget(),
+      //             );
+      //           }
+
+      //           // Check if the message is the WebSocket response (for left-alignment)
+      //           bool isUserMessage = index % 2 == 0;
+
+      //           return Align(
+      //             alignment:
+      //                 isUserMessage
+      //                     ? Alignment
+      //                         .centerRight // User messages are right-aligned
+      //                     : Alignment
+      //                         .centerLeft, // WebSocket responses are left-aligned
+      //             child: Padding(
+      //               padding: const EdgeInsets.symmetric(vertical: 5),
+      //               child:
+      //                   isUserMessage
+      //                       ? Container(
+      //                         padding: const EdgeInsets.all(12),
+      //                         decoration: BoxDecoration(
+      //                           color: const Color(0xFF29292B),
+      //                           borderRadius: BorderRadius.circular(20),
+      //                         ),
+      //                         child: Text(
+      //                           _messages[index],
+      //                           style: const TextStyle(
+      //                             color: Color(0xFFB3B3B3),
+      //                             fontFamily: "LexendDeca",
+      //                             fontWeight: FontWeight.w700,
+      //                             fontSize: 15,
+      //                           ),
+      //                         ),
+      //                       )
+      //                       : Text(
+      //                         _messages[index], // WebSocket response without box
+      //                         style: const TextStyle(
+      //                           color: Colors.white,
+      //                           fontFamily: "LexendDeca",
+      //                           fontWeight: FontWeight.w700,
+      //                           fontSize: 16,
+      //                         ),
+      //                       ),
+      //             ),
+      //           );
+      //         },
+      //       ),
+      //     ),
+
+      //     // Pass the isLoading state to the PromptBar to toggle the icon
+      //     PromptBar(
+      //       controller: _controller,
+      //       onSend: _handleSend,
+      //       isLoading: _isLoading, // Pass the loading state to toggle the icon
+      //     ),
+      //   ],
+      // ),
