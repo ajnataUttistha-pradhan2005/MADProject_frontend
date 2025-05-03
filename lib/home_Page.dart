@@ -5,6 +5,7 @@ import 'package:mathsolver/components/gradient_Avatar.dart';
 import 'package:mathsolver/components/prompt_bar.dart';
 import 'package:mathsolver/components/Loading_Widget.dart';
 import 'package:mathsolver/components/welcome_intro.dart';
+import 'package:mathsolver/pages/profile_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,13 +16,27 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final TextEditingController _controller = TextEditingController();
-  final List<Map<String, dynamic>> _messages = [];
   final ScrollController _scrollController = ScrollController();
+  final List<Map<String, dynamic>> _messages = [];
+  late FocusNode _focusNode;
 
   bool _isLoading = false;
   bool _isTextBoxFocused = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
   void _handleSend(dynamic message) {
+    _focusNode.unfocus(); // Close the keyboard when message is sent
     setState(() {
       _messages.add({
         'type': message is String ? 'text' : 'image',
@@ -42,7 +57,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _simulateWebSocketResponse() async {
-    await Future.delayed(const Duration(seconds: 5));
+    await Future.delayed(const Duration(seconds: 2));
     setState(() {
       _messages.add({
         'type': 'text',
@@ -64,47 +79,153 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Widget _buildDrawerSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white70,
+          fontSize: 14,
+          fontFamily: "LexendDeca",
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem(String title, IconData icon) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.white70),
+      title: Text(
+        title,
+        style: const TextStyle(color: Colors.white, fontFamily: "LexendDeca"),
+      ),
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        Navigator.pop(context);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+
+      // 🍔 Drawer
+      drawer: Drawer(
+        backgroundColor: const Color(0xFF121212),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                child: Text(
+                  "Conversations",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: "LexendDeca",
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const TextField(
+                    style: TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: "Search chats",
+                      hintStyle: TextStyle(
+                        color: Colors.white54,
+                        fontFamily: "LexendDeca",
+                      ),
+                      border: InputBorder.none,
+                      icon: Icon(Icons.search, color: Colors.white54),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _buildDrawerSectionTitle("📌 Pinned"),
+              _buildDrawerItem("Math Doubt with AI", Icons.star),
+              const Divider(color: Colors.white24),
+              _buildDrawerSectionTitle("🕒 Recent"),
+              _buildDrawerItem("Chat #1", Icons.chat_bubble_outline),
+              _buildDrawerItem("Chat #2", Icons.chat_bubble_outline),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    "No more chats yet",
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 16,
+                      fontFamily: "LexendDeca",
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        leading: Container(
-          margin: const EdgeInsets.all(10),
-          child: SvgPicture.asset(
-            "assets/icons/menu.svg",
-            height: 31,
-            width: 37,
-          ),
+        leading: Builder(
+          builder:
+              (context) => IconButton(
+                icon: SvgPicture.asset(
+                  "assets/icons/menu.svg",
+                  height: 31,
+                  width: 37,
+                ),
+                onPressed: () {
+                  FocusScope.of(context).unfocus();
+                  Scaffold.of(context).openDrawer();
+                },
+              ),
         ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 10.0),
-            child: GradientAvatar(
-              imageUrl: 'assets/icons/profileImg.jpeg',
-              isAsset: true,
-              size: 50,
-              borderWidth: 3,
+            child: GestureDetector(
+              onTap: () {
+                FocusScope.of(context).unfocus();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfilePage()),
+                );
+              },
+              child: GradientAvatar(
+                imageUrl: 'assets/icons/profileImg.jpeg',
+                isAsset: true,
+                size: 50,
+                borderWidth: 3,
+              ),
             ),
           ),
         ],
       ),
+
       body: SafeArea(
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => FocusScope.of(context).unfocus(),
-          child: AnimatedPadding(
-            duration: const Duration(milliseconds: 150),
-            padding: EdgeInsets.only(
-              bottom: 0,
-              // MediaQuery.of(context).viewInsets.bottom, this line very buggy
-            ),
+          child: Column(
+            children: [
+              if (_messages.isEmpty && !_isTextBoxFocused)
+                const Expanded(child: WelcomeIntro()),
 
-            child: Column(
-              children: [
-                if (_messages.isEmpty && !_isTextBoxFocused)
-                  const WelcomeIntro(),
+              if (_messages.isNotEmpty || _isTextBoxFocused)
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
@@ -155,10 +276,10 @@ class _HomePageState extends State<HomePage> {
                                     ),
                                   )
                                   : ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(20),
                                     child: Image.file(
-                                      File(content.path),
-                                      width: 220,
+                                      content as File,
+                                      width: 200,
                                     ),
                                   ),
                         ),
@@ -166,94 +287,19 @@ class _HomePageState extends State<HomePage> {
                     },
                   ),
                 ),
-                PromptBar(
-                  controller: _controller,
-                  onSend: _handleSend,
-                  isLoading: _isLoading,
-                  onFocusChange: _onTextBoxFocusChanged,
-                ),
-              ],
-            ),
+
+              // PromptBar stays pinned at the bottom
+              PromptBar(
+                controller: _controller,
+                onSend: _handleSend,
+                isLoading: _isLoading,
+                focusNode: _focusNode,
+                onFocusChange: _onTextBoxFocusChanged,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
-
-// incase want before body 
-      // body: Column(
-      //   children: [
-      //     // Display WelcomeIntro only if _messages is empty
-      //     if (_messages.isEmpty) const WelcomeIntro(),
-
-      //     // The list of messages
-      //     Expanded(
-      //       child: ListView.builder(
-      //         controller: _scrollController, // Set the scroll controller
-      //         padding: const EdgeInsets.all(16),
-      //         itemCount:
-      //             _messages.length +
-      //             (_isLoading ? 1 : 0), // Add 1 for the loading widget
-      //         itemBuilder: (context, index) {
-      //           // If loading, show the loading widget
-      //           if (_isLoading && index == _messages.length) {
-      //             return Padding(
-      //               padding: const EdgeInsets.symmetric(vertical: 20.0),
-      //               child: LoadingWidget(),
-      //             );
-      //           }
-
-      //           // Check if the message is the WebSocket response (for left-alignment)
-      //           bool isUserMessage = index % 2 == 0;
-
-      //           return Align(
-      //             alignment:
-      //                 isUserMessage
-      //                     ? Alignment
-      //                         .centerRight // User messages are right-aligned
-      //                     : Alignment
-      //                         .centerLeft, // WebSocket responses are left-aligned
-      //             child: Padding(
-      //               padding: const EdgeInsets.symmetric(vertical: 5),
-      //               child:
-      //                   isUserMessage
-      //                       ? Container(
-      //                         padding: const EdgeInsets.all(12),
-      //                         decoration: BoxDecoration(
-      //                           color: const Color(0xFF29292B),
-      //                           borderRadius: BorderRadius.circular(20),
-      //                         ),
-      //                         child: Text(
-      //                           _messages[index],
-      //                           style: const TextStyle(
-      //                             color: Color(0xFFB3B3B3),
-      //                             fontFamily: "LexendDeca",
-      //                             fontWeight: FontWeight.w700,
-      //                             fontSize: 15,
-      //                           ),
-      //                         ),
-      //                       )
-      //                       : Text(
-      //                         _messages[index], // WebSocket response without box
-      //                         style: const TextStyle(
-      //                           color: Colors.white,
-      //                           fontFamily: "LexendDeca",
-      //                           fontWeight: FontWeight.w700,
-      //                           fontSize: 16,
-      //                         ),
-      //                       ),
-      //             ),
-      //           );
-      //         },
-      //       ),
-      //     ),
-
-      //     // Pass the isLoading state to the PromptBar to toggle the icon
-      //     PromptBar(
-      //       controller: _controller,
-      //       onSend: _handleSend,
-      //       isLoading: _isLoading, // Pass the loading state to toggle the icon
-      //     ),
-      //   ],
-      // ),

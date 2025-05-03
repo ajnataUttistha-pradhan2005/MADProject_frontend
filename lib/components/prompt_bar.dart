@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:saver_gallery/saver_gallery.dart';
 
@@ -11,6 +10,7 @@ class PromptBar extends StatefulWidget {
   final void Function(dynamic) onSend;
   final bool isLoading;
   final void Function(bool)? onFocusChange;
+  final FocusNode focusNode; // Add FocusNode to manage focus explicitly
 
   const PromptBar({
     super.key,
@@ -18,6 +18,7 @@ class PromptBar extends StatefulWidget {
     required this.onSend,
     this.isLoading = false,
     this.onFocusChange,
+    required this.focusNode, // Receive FocusNode here
   });
 
   @override
@@ -25,26 +26,6 @@ class PromptBar extends StatefulWidget {
 }
 
 class _PromptBarState extends State<PromptBar> {
-  late FocusNode _focusNode;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode = FocusNode();
-
-    _focusNode.addListener(() {
-      if (widget.onFocusChange != null) {
-        widget.onFocusChange!(_focusNode.hasFocus);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -64,7 +45,7 @@ class _PromptBarState extends State<PromptBar> {
                 constraints: const BoxConstraints(maxHeight: 120),
                 child: TextField(
                   controller: widget.controller,
-                  focusNode: _focusNode,
+                  focusNode: widget.focusNode, // Pass FocusNode here
                   maxLines: null,
                   style: const TextStyle(
                     color: Color.fromARGB(255, 207, 206, 206),
@@ -101,7 +82,8 @@ class _PromptBarState extends State<PromptBar> {
           const SizedBox(width: 8),
           GestureDetector(
             onTap: () {
-              _focusNode.unfocus();
+              widget.focusNode
+                  .unfocus(); // Unfocus keyboard when media options are tapped
               _showMediaOptions(context);
             },
             child: Container(
