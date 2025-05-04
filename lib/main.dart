@@ -1,5 +1,30 @@
+// import 'package:flutter/material.dart';
+// import 'package:mathsolver/pages/home_Page.dart';
+
+// void main() {
+//   runApp(const MyApp());
+// }
+
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+
+//   // This widget is the root of your application.
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       debugShowCheckedModeBanner: false,
+//       title: 'Flutter Demo',
+//       theme: ThemeData(
+//         fontFamily: "LexendDeca",
+//         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+//       ),
+//       home: HomePage(),
+//     );
+//   }
+// }
 import 'package:flutter/material.dart';
-import 'package:mathsolver/home_Page.dart';
+import 'package:mathsolver/pages/home_page.dart';
+import 'package:mathsolver/pages/sign_in_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -8,17 +33,17 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
+      title: 'MathSolver',
       theme: ThemeData(
         fontFamily: "LexendDeca",
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
       ),
-      home: HomePage(),
+      home: const SignInPage(),
     );
   }
 }
