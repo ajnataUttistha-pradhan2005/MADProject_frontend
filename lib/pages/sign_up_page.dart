@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mathsolver/pages/sign_in_page.dart';
 import 'package:mathsolver/services/auth_service.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -106,6 +107,17 @@ class _SignUpPageState extends State<SignUpPage> {
                   _loading
                       ? const CircularProgressIndicator()
                       : const Text("Sign Up"),
+            ),
+            TextButton(
+              onPressed:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SignInPage()),
+                  ),
+              child: const Text(
+                "Have an account? Sign in",
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
