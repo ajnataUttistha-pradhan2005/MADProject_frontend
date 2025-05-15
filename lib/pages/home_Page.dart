@@ -9,6 +9,7 @@ import 'package:mathsolver/components/prompt_bar.dart';
 import 'package:mathsolver/components/Loading_Widget.dart';
 import 'package:mathsolver/components/welcome_intro.dart';
 import 'package:mathsolver/pages/profile_page.dart';
+import 'package:mathsolver/pages/image_viewer_page.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class HomePage extends StatefulWidget {
@@ -36,17 +37,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _initSocket() {
-    socket = IO.io('wss://endpoint', <String, dynamic>{
+    socket = IO.io('wss://f707-106-51-119-53.ngrok-free.app', <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': true,
     });
 
     socket.onConnect((_) {
-      print('✅ Connected to WebSocket');
+      // print('✅ Connected to WebSocket');
     });
 
     socket.on('bot_response', (data) {
-      print("🤖 Bot Response: $data");
+      // print("🤖 Bot Response: $data");
       setState(() {
         _messages.add({'type': 'text', 'content': data, 'fromUser': false});
         _isLoading = false;
@@ -55,11 +56,11 @@ class _HomePageState extends State<HomePage> {
     });
 
     socket.onDisconnect((_) {
-      print('❌ Disconnected from WebSocket');
+      // print('❌ Disconnected from WebSocket');
     });
 
     socket.onError((err) {
-      print('⚠️ Socket error: $err');
+      // print('⚠️ Socket error: $err');
     });
   }
 
@@ -327,9 +328,22 @@ class _HomePageState extends State<HomePage> {
                                   )
                                   : ClipRRect(
                                     borderRadius: BorderRadius.circular(20),
-                                    child: Image.file(
-                                      content as File,
-                                      width: 200,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (_) => ImageViewerPage(
+                                                  imageFile: content,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      child: Image.file(
+                                        content as File,
+                                        width: 200,
+                                      ),
                                     ),
                                   ),
                         ),

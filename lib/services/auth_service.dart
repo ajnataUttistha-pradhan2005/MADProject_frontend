@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class AuthService {
-  static const String baseUrl = 'http://10.0.2.2:8080/auth';
+  static const String baseUrl =
+      'https://89a7-2406-7400-10d-c150-5c3-e71a-3bb8-1b68.ngrok-free.app/auth';
 
   static Future<Map<String, dynamic>> signUp(
     String username,
