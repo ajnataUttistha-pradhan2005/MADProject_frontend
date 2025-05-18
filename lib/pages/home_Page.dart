@@ -8,9 +8,12 @@ import 'package:mathsolver/components/gradient_Avatar.dart';
 import 'package:mathsolver/components/prompt_bar.dart';
 import 'package:mathsolver/components/Loading_Widget.dart';
 import 'package:mathsolver/components/welcome_intro.dart';
+import 'package:mathsolver/globals.dart';
 import 'package:mathsolver/pages/profile_page.dart';
 import 'package:mathsolver/pages/image_viewer_page.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:mathsolver/models/chat_models.dart';
+import 'package:mathsolver/services/chat_storage.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,17 +32,60 @@ class _HomePageState extends State<HomePage> {
   bool _isTextBoxFocused = false;
   late IO.Socket socket;
 
+  List<ChatConversation> _chatHistory = [];
+  ChatConversation? _currentChat;
+
   @override
   void initState() {
     super.initState();
     _focusNode = FocusNode();
     _initSocket();
+    _loadChats();
+  }
+
+  void _loadChats() async {
+    final chats = await ChatStorage.loadConversations();
+    setState(() {
+      _chatHistory = chats;
+      if (chats.isNotEmpty) _loadChat(chats.last);
+    });
+  }
+
+  void _loadChat(ChatConversation chat) {
+    setState(() {
+      _currentChat = chat;
+      _messages.clear();
+      _messages.addAll(
+        chat.messages
+            .map((m) {
+              if (m.type == 'image') {
+                final file = File(m.content);
+                return {
+                  'type': 'image',
+                  'content': file.existsSync() ? file : null,
+                  'fromUser': m.fromUser,
+                };
+              } else {
+                return {
+                  'type': 'text',
+                  'content': m.content,
+                  'fromUser': m.fromUser,
+                };
+              }
+            })
+            .where((m) => m['content'] != null)
+            .toList(),
+      );
+    });
   }
 
   void _initSocket() {
-    socket = IO.io('wss://f707-106-51-119-53.ngrok-free.app', <String, dynamic>{
+    // String? token = Globals.token;
+    String? token = "token";
+    socket = IO.io('wss://endpoint', <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': true,
+      'extraHeaders': {'token': token},
     });
 
     socket.onConnect((_) {
@@ -53,6 +99,15 @@ class _HomePageState extends State<HomePage> {
         _isLoading = false;
       });
       _scrollToBottom();
+
+      Future.microtask(() async {
+        _currentChat?.messages.add(
+          ChatMessage(type: 'text', content: data, fromUser: false),
+        );
+        if (_currentChat != null) {
+          await ChatStorage.saveConversation(_currentChat!);
+        }
+      });
     });
 
     socket.onDisconnect((_) {
@@ -112,6 +167,21 @@ class _HomePageState extends State<HomePage> {
     } else {
       debugPrint("⚠️ Unsupported message type: ${message.runtimeType}");
     }
+
+    if (_currentChat != null) {
+      _currentChat!.messages.add(
+        ChatMessage(
+          type: isText ? 'text' : 'image',
+          content: isText ? message : (message as File).path,
+          fromUser: true,
+        ),
+      );
+      final index = _chatHistory.indexWhere((c) => c.id == _currentChat!.id);
+      if (index != -1) {
+        _chatHistory[index] = _currentChat!;
+      }
+      await ChatStorage.saveConversations(_chatHistory);
+    }
   }
 
   void _scrollToBottom() {
@@ -128,6 +198,54 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _isTextBoxFocused = focused;
     });
+  }
+
+  Future<String?> _showRenameDialog(String currentName) async {
+    TextEditingController controller = TextEditingController(text: currentName);
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          title: const Text(
+            'Rename Chat',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            cursorColor: Colors.white,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFF2C2C2C),
+              hintText: 'Enter new name',
+              hintStyle: const TextStyle(color: Colors.white54),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color.fromARGB(255, 227, 230, 227),
+              ),
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('Rename'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildDrawerSectionTitle(String title) {
@@ -161,6 +279,9 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final pinned = _chatHistory.where((c) => c.isPinned).toList();
+    final recent = _chatHistory.where((c) => !c.isPinned).toList();
+
     return Scaffold(
       backgroundColor: Colors.black,
 
@@ -171,18 +292,41 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
-                child: Text(
-                  "Conversations",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: "LexendDeca",
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Conversations",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: "LexendDeca",
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add, color: Colors.white),
+                      onPressed: () async {
+                        final newChat = ChatConversation(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          title: 'New Chat', // Changed from 'Chat X'
+                          messages: [],
+                        );
+                        setState(() {
+                          _chatHistory.add(newChat);
+                          _currentChat = newChat;
+                          _messages.clear();
+                        });
+                        await ChatStorage.saveConversations(_chatHistory);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
                 ),
               ),
+
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Container(
@@ -206,23 +350,182 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               const SizedBox(height: 10),
-              _buildDrawerSectionTitle("📌 Pinned"),
-              _buildDrawerItem("Math Doubt with AI", Icons.star),
-              const Divider(color: Colors.white24),
-              _buildDrawerSectionTitle("🕒 Recent"),
-              _buildDrawerItem("Chat #1", Icons.chat_bubble_outline),
-              _buildDrawerItem("Chat #2", Icons.chat_bubble_outline),
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    "No more chats yet",
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 16,
-                      fontFamily: "LexendDeca",
+
+              // Pinned section
+              if (pinned.isNotEmpty) ...[
+                _buildDrawerSectionTitle("📌 Pinned"),
+                ...pinned.map((chat) {
+                  return ListTile(
+                    leading: const Icon(Icons.star, color: Colors.amber),
+                    title: Text(
+                      chat.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontFamily: "LexendDeca",
+                      ),
                     ),
-                  ),
-                ),
+                    trailing: PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, color: Colors.white70),
+                      onSelected: (value) async {
+                        if (value == 'rename') {
+                          final newName = await _showRenameDialog(chat.title);
+                          if (newName != null && newName.trim().isNotEmpty) {
+                            setState(() {
+                              chat.title = newName.trim();
+                            });
+                            await ChatStorage.saveConversations(_chatHistory);
+                          }
+                        } else if (value == 'delete') {
+                          setState(() {
+                            _chatHistory.remove(chat);
+                            if (_currentChat?.id == chat.id) {
+                              _messages.clear();
+                              _currentChat = null;
+                            }
+                          });
+                          await ChatStorage.saveConversations(_chatHistory);
+                        } else if (value == 'pin') {
+                          setState(() {
+                            chat.isPinned = !chat.isPinned;
+                            _chatHistory.sort(
+                              (a, b) =>
+                                  (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0),
+                            );
+                          });
+                          await ChatStorage.saveConversations(_chatHistory);
+                        }
+                      },
+                      itemBuilder:
+                          (context) => [
+                            const PopupMenuItem(
+                              value: 'rename',
+                              child: Text('Rename'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
+                            PopupMenuItem(
+                              value: 'pin',
+                              child: Text(chat.isPinned ? 'Unpin' : 'Pin'),
+                            ),
+                          ],
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _loadChat(chat);
+                      });
+                      Navigator.pop(context);
+                      _scrollToBottom();
+                    },
+                  );
+                }).toList(),
+                const Divider(color: Colors.white24),
+              ],
+
+              // Recent section
+              _buildDrawerSectionTitle("🕒 Recent"),
+              Expanded(
+                child:
+                    recent.isNotEmpty
+                        ? ListView.builder(
+                          itemCount: recent.length,
+                          itemBuilder: (context, index) {
+                            final chat = recent[index];
+                            return ListTile(
+                              leading: const Icon(
+                                Icons.chat_bubble_outline,
+                                color: Colors.white70,
+                              ),
+                              title: Text(
+                                chat.title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontFamily: "LexendDeca",
+                                ),
+                              ),
+                              trailing: PopupMenuButton<String>(
+                                icon: const Icon(
+                                  Icons.more_vert,
+                                  color: Colors.white70,
+                                ),
+                                onSelected: (value) async {
+                                  if (value == 'rename') {
+                                    final newName = await _showRenameDialog(
+                                      chat.title,
+                                    );
+                                    if (newName != null &&
+                                        newName.trim().isNotEmpty) {
+                                      setState(() {
+                                        chat.title = newName.trim();
+                                      });
+                                      await ChatStorage.saveConversations(
+                                        _chatHistory,
+                                      );
+                                    }
+                                  } else if (value == 'delete') {
+                                    setState(() {
+                                      _chatHistory.remove(chat);
+                                      if (_currentChat?.id == chat.id) {
+                                        _messages.clear();
+                                        _currentChat = null;
+                                      }
+                                    });
+                                    await ChatStorage.saveConversations(
+                                      _chatHistory,
+                                    );
+                                  } else if (value == 'pin') {
+                                    setState(() {
+                                      chat.isPinned = !chat.isPinned;
+                                      _chatHistory.sort(
+                                        (a, b) =>
+                                            (b.isPinned ? 1 : 0) -
+                                            (a.isPinned ? 1 : 0),
+                                      );
+                                    });
+                                    await ChatStorage.saveConversations(
+                                      _chatHistory,
+                                    );
+                                  }
+                                },
+                                itemBuilder:
+                                    (context) => [
+                                      const PopupMenuItem(
+                                        value: 'rename',
+                                        child: Text('Rename'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Delete'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'pin',
+                                        child: Text(
+                                          chat.isPinned ? 'Unpin' : 'Pin',
+                                        ),
+                                      ),
+                                    ],
+                              ),
+                              onTap: () {
+                                setState(() {
+                                  _loadChat(chat);
+                                });
+                                Navigator.pop(context);
+                                _scrollToBottom();
+                              },
+                            );
+                          },
+                        )
+                        : const Center(
+                          child: Text(
+                            "No more chats yet",
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 16,
+                              fontFamily: "LexendDeca",
+                            ),
+                          ),
+                        ),
               ),
             ],
           ),

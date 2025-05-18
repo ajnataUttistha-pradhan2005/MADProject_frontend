@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mathsolver/globals.dart';
 import 'package:mathsolver/services/auth_service.dart';
 import 'package:mathsolver/pages/home_page.dart';
 import 'package:mathsolver/pages/sign_up_page.dart';
@@ -30,7 +31,8 @@ class _SignInPageState extends State<SignInPage> {
 
     setState(() => _loading = false);
 
-    if (result['access_token'] != null) {
+    if (result['token'] != null) {
+      Globals.token = result['token'];
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomePage()),

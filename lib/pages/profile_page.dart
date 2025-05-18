@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mathsolver/components/gradient_Avatar.dart';
 import 'package:mathsolver/pages/sign_in_page.dart'; // adjust path if needed
+import 'package:mathsolver/services/auth_service.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -47,7 +48,11 @@ class ProfilePage extends StatelessWidget {
 
             // Logout Button
             GestureDetector(
-              onTap: () {
+              onTap: () async {
+                // Call signOut to use Globals.username
+                await AuthService.signout();
+
+                // Navigate to SignInPage and remove all previous routes
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (_) => const SignInPage()),
