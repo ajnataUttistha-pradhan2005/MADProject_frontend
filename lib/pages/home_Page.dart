@@ -31,7 +31,10 @@ class _HomePageState extends State<HomePage> {
 
   bool _isLoading = false;
   bool _isTextBoxFocused = false;
-  late IO.Socket socket;
+  late IO.Socket socket = IO.io('wss://dummy', <String, dynamic>{
+    'transports': ['websocket'],
+    'autoConnect': false,
+  });
 
   List<ChatConversation> _chatHistory = [];
   ChatConversation? _currentChat;
@@ -45,42 +48,6 @@ class _HomePageState extends State<HomePage> {
       _checkAndLoadChats();
     }
   }
-
-  // void _loadChats() async {
-  //   final chats = await ChatStorage.loadConversations();
-  //   setState(() {
-  //     _chatHistory = chats;
-  //     if (chats.isNotEmpty) _loadChat(chats.last);
-  //   });
-  // }
-
-  // void _loadChat(ChatConversation chat) {
-  //   setState(() {
-  //     _currentChat = chat;
-  //     _messages.clear();
-  //     _messages.addAll(
-  //       chat.messages
-  //           .map((m) {
-  //             if (m.type == 'image') {
-  //               final file = File(m.content);
-  //               return {
-  //                 'type': 'image',
-  //                 'content': file.existsSync() ? file : null,
-  //                 'fromUser': m.fromUser,
-  //               };
-  //             } else {
-  //               return {
-  //                 'type': 'text',
-  //                 'content': m.content,
-  //                 'fromUser': m.fromUser,
-  //               };
-  //             }
-  //           })
-  //           .where((m) => m['content'] != null)
-  //           .toList(),
-  //     );
-  //   });
-  // }
 
   void _checkAndLoadChats() async {
     List<ChatConversation> localChats = await ChatStorage.loadConversations();
@@ -119,77 +86,57 @@ class _HomePageState extends State<HomePage> {
     return [];
   }
 
-  // void _initSocket() {
-  //   // String? token = Globals.token;
-  //   String? token = "token";
-  //   socket = IO.io('wss://endpoint', <String, dynamic>{
-  //     'transports': ['websocket'],
-  //     'autoConnect': true,
-  //     'extraHeaders': {'token': token},
-  //   });
-
-  //   socket.onConnect((_) {
-  //     // print('✅ Connected to WebSocket');
-  //   });
-
-  //   socket.on('bot_response', (data) {
-  //     // print("🤖 Bot Response: $data");
-  //     setState(() {
-  //       _messages.add({'type': 'text', 'content': data, 'fromUser': false});
-  //       _isLoading = false;
-  //     });
-  //     _scrollToBottom();
-
-  //     Future.microtask(() async {
-  //       _currentChat?.messages.add(
-  //         ChatMessage(type: 'text', content: data, fromUser: false),
-  //       );
-  //       if (_currentChat != null) {
-  //         await ChatStorage.saveConversation(_currentChat!);
-  //       }
-  //     });
-  //   });
-
-  //   socket.onDisconnect((_) {
-  //     // print('❌ Disconnected from WebSocket');
-  //   });
-
-  //   socket.onError((err) {
-  //     // print('⚠️ Socket error: $err');
-  //   });
-  // }
-
-  //
-
   Future<void> _connectWebSocket(String chatId) async {
     if (Globals.token == null || Globals.token!.isEmpty) return;
 
     // Dispose previous if any
-    if (socket.connected) socket.disconnect();
-    socket.dispose();
+    try {
+      if (socket.connected) socket.disconnect();
+      socket.dispose();
+    } catch (_) {}
 
-    socket = IO.io('wss://your-endpoint', <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false,
-      'extraHeaders': {'token': Globals.token!, 'conversationId': chatId},
-    });
+    debugPrint("berfore chatId : $chatId");
+    debugPrint("token : ${Globals.token}");
+
+    socket = IO.io(
+      '${Globals.websocketURI}?chatId=$chatId', // 👈 Make URI unique
+      <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': false,
+        // 'query': {'token': Globals.token!, 'chatId': chatId},
+        'extraHeaders': {'token': Globals.token!},
+        'forceNew': true, // 👈 VERY IMPORTANT: Forces a new connection instance
+        'reconnection': false,
+      },
+    );
 
     socket.connect();
 
     socket.onConnect((_) {
       debugPrint('✅ Connected to WebSocket');
+      debugPrint('🔗 Connecting socket with chatId: $chatId');
     });
 
     socket.on('bot_response', (data) {
+      String message;
+
+      if (data is String) {
+        message = data;
+      } else if (data is Map && data.containsKey('text')) {
+        message = data['text'];
+      } else {
+        message = jsonEncode(data); // fallback to avoid crash
+      }
+      debugPrint('$data');
       setState(() {
-        _messages.add({'type': 'text', 'content': data, 'fromUser': false});
+        _messages.add({'type': 'text', 'content': message, 'fromUser': false});
         _isLoading = false;
       });
       _scrollToBottom();
 
       if (_currentChat != null) {
         _currentChat!.messages.add(
-          ChatMessage(type: 'text', content: data, fromUser: false),
+          ChatMessage(type: 'text', content: message, fromUser: false),
         );
         ChatStorage.saveConversation(_currentChat!);
       }
@@ -238,67 +185,19 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // void _handleSend(dynamic message) async {
-  //   _focusNode.unfocus();
-
-  //   final isText = message is String;
-  //   final messageData = {
-  //     'type': isText ? 'text' : 'image',
-  //     'content': message,
-  //     'fromUser': true,
-  //   };
-
-  //   setState(() {
-  //     _messages.add(messageData);
-  //     _isLoading = true;
-  //   });
-
-  //   _scrollToBottom();
-
-  //   if (isText) {
-  //     socket.emit('user_message', {'type': 'text', 'text': message});
-  //     debugPrint("✅ Text sent successfully.");
-  //   } else if (message is XFile) {
-  //     try {
-  //       final bytes = await message.readAsBytes();
-  //       final base64Image = base64Encode(bytes);
-  //       socket.emit('user_message', {'type': 'image', 'base64': base64Image});
-  //       debugPrint("✅ Image sent successfully (XFile).");
-  //     } catch (e) {
-  //       debugPrint("❌ Error sending image from XFile: $e");
-  //     }
-  //   } else if (message is File) {
-  //     try {
-  //       final bytes = await message.readAsBytes();
-  //       final base64Image = base64Encode(bytes);
-  //       socket.emit('user_message', {'type': 'image', 'base64': base64Image});
-  //       debugPrint("✅ Image sent successfully (File).");
-  //     } catch (e) {
-  //       debugPrint("❌ Error sending image from File: $e");
-  //     }
-  //   } else {
-  //     debugPrint("⚠️ Unsupported message type: ${message.runtimeType}");
-  //   }
-
-  //   if (_currentChat != null) {
-  //     _currentChat!.messages.add(
-  //       ChatMessage(
-  //         type: isText ? 'text' : 'image',
-  //         content: isText ? message : (message as File).path,
-  //         fromUser: true,
-  //       ),
-  //     );
-  //     final index = _chatHistory.indexWhere((c) => c.id == _currentChat!.id);
-  //     if (index != -1) {
-  //       _chatHistory[index] = _currentChat!;
-  //     }
-  //     await ChatStorage.saveConversations(_chatHistory);
-  //   }
-  // }
+  void _disposeSocket() {
+    try {
+      if (socket.connected) socket.disconnect();
+      socket.dispose();
+    } catch (e) {
+      debugPrint('Socket disposal error: $e');
+    }
+  }
 
   void _handleSend(dynamic message) async {
     _focusNode.unfocus();
 
+    // Step 1: Create a new chat if needed
     if (_currentChat == null) {
       final newChat = ChatConversation(
         userId: Globals.userId,
@@ -308,34 +207,36 @@ class _HomePageState extends State<HomePage> {
       );
       _chatHistory.add(newChat);
       await ChatStorage.saveConversations(_chatHistory);
-      setState(() {
-        _currentChat = newChat;
-      });
+      _currentChat = newChat; // ✅ No setState here – avoid race condition
     }
 
     final isText = message is String;
-    final messageData = {
-      'type': isText ? 'text' : 'image',
-      'content': message,
-      'fromUser': true,
-    };
 
+    // Step 2: Add user message to UI
     setState(() {
-      _messages.add(messageData);
+      _messages.add({
+        'type': isText ? 'text' : 'image',
+        'content': message,
+        'fromUser': true,
+      });
       _isLoading = true;
     });
 
     _scrollToBottom();
 
-    // ✅ Ensure socket is initialized and connected
-    if (socket == null || !socket.connected) {
-      await _connectWebSocket(_currentChat?.id ?? "");
+    // ✅ Step 3: Connect socket with guaranteed correct chat ID
+    final chatId = _currentChat!.id;
+    _disposeSocket();
+    if (!socket.connected ||
+        socket.io.uri != Globals.websocketURI ||
+        socket.io.options?['extraHeaders']?['chatId'] != chatId) {
+      await _connectWebSocket(chatId);
     }
 
+    // Step 4: Emit message
     if (isText) {
       socket.emit('user_message', {'type': 'text', 'text': message});
-      debugPrint("✅ Text sent successfully.");
-    } else if (message is XFile || message is File) {
+    } else {
       try {
         final file =
             message is XFile
@@ -343,13 +244,12 @@ class _HomePageState extends State<HomePage> {
                 : await (message as File).readAsBytes();
         final base64Image = base64Encode(file);
         socket.emit('user_message', {'type': 'image', 'base64': base64Image});
-        debugPrint("✅ Image sent successfully.");
       } catch (e) {
         debugPrint("❌ Error sending image: $e");
       }
     }
 
-    // Save message locally
+    // Step 5: Save message locally
     if (_currentChat != null) {
       _currentChat!.messages.add(
         ChatMessage(
@@ -760,7 +660,7 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             children: [
               if (_messages.isEmpty && !_isTextBoxFocused)
-                const Expanded(child: WelcomeIntro()),
+                const Flexible(child: WelcomeIntro()),
 
               if (_messages.isNotEmpty || _isTextBoxFocused)
                 Expanded(

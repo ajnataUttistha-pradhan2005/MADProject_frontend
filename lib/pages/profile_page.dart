@@ -42,9 +42,8 @@ class ProfilePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 30),
-            _buildProfileField("Name", "John Doe"),
-            _buildProfileField("Email", "johndoe@example.com"),
-            _buildProfileField("Phone", "+91 98765 43210"),
+            _buildProfileField("Name", Globals.username ?? "John Doe"),
+            _buildProfileField("Email", Globals.email ?? "johndoe@example.com"),
             const SizedBox(height: 40),
 
             // Logout Button
