@@ -41,21 +41,22 @@ class AuthService {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
     );
-    // final result = jsonDecode(response.body);
-    // Globals.userId = result['userId'];
-    // Globals.username = result['username'];
+    final result = jsonDecode(response.body);
+    Globals.userId = result['userId'];
+    Globals.username = result['username'];
     return jsonDecode(response.body);
   }
 
-  // static Future<Map<String, dynamic>> signout() async {
-  //   final response = await http.post(
-  //     Uri.parse('$baseUrl/signout'),
-  //     headers: {'Content-Type': 'application/json'},
-  //     body: jsonEncode({'username': Globals.username}),
-  //   );
-  //   // After signing out, you can clear the global username if needed
-  //   Globals.username = null;
-  //   Globals.token = null;
-  //   return jsonDecode(response.body);
-  // }
+  static void signout() {
+    // final response = await http.post(
+    //   Uri.parse('$baseUrl/signout'),
+    //   headers: {'Content-Type': 'application/json'},
+    //   body: jsonEncode({'username': Globals.username}),
+    // );
+    // After signing out, you can clear the global username if needed
+    Globals.username = null;
+    Globals.token = null;
+    Globals.userId = "0";
+    Globals.email = null;
+  }
 }

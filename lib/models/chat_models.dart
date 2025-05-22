@@ -1,6 +1,6 @@
 class ChatMessage {
   final String type; // 'text' or 'image'
-  final String content; // text content or image file path
+  String content; // text content or image file path
   final bool fromUser;
 
   ChatMessage({
@@ -23,23 +23,23 @@ class ChatMessage {
 }
 
 class ChatConversation {
-  final String userId;
   final String id;
+  final String userId;
   String title;
   final List<ChatMessage> messages;
   bool isPinned;
 
   ChatConversation({
-    required this.userId,
     required this.id,
+    required this.userId,
     required this.title,
     required this.messages,
     this.isPinned = false,
   });
 
   Map<String, dynamic> toJson() => {
-    'userId': userId,
     'id': id,
+    'userId': userId,
     'title': title,
     'messages': messages.map((m) => m.toJson()).toList(),
     'isPinned': isPinned,
@@ -47,8 +47,8 @@ class ChatConversation {
 
   factory ChatConversation.fromJson(Map<String, dynamic> json) =>
       ChatConversation(
-        userId: json['userId'],
         id: json['id'],
+        userId: json['userId'],
         title: json['title'],
         messages:
             (json['messages'] as List)

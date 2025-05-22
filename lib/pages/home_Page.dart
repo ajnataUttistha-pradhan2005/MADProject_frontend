@@ -15,6 +15,7 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:mathsolver/models/chat_models.dart';
 import 'package:mathsolver/services/chat_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -51,31 +52,33 @@ class _HomePageState extends State<HomePage> {
 
   void _checkAndLoadChats() async {
     List<ChatConversation> localChats = await ChatStorage.loadConversations();
-
+    List<ChatConversation> userChats =
+        localChats.where((chat) => chat.userId == Globals.userId).toList();
     // If local is empty, fetch from backend
-    if (localChats.isEmpty) {
+    if (userChats.isEmpty) {
       final fetched = await _fetchChatsFromBackend();
       if (fetched.isNotEmpty) {
         await ChatStorage.saveConversations(fetched);
-        localChats = fetched;
+        userChats = fetched;
       }
     }
 
     setState(() {
-      _chatHistory = localChats;
-      if (localChats.isNotEmpty) _loadChat(localChats.last);
+      _chatHistory = userChats;
+      if (userChats.isNotEmpty) _loadChat(userChats.last);
     });
   }
 
   Future<List<ChatConversation>> _fetchChatsFromBackend() async {
     try {
       final res = await http.get(
-        Uri.parse('${Globals.httpURI}/chatsync'),
+        Uri.parse('${Globals.httpURI}/user/chatsync'),
         headers: {'token': '${Globals.token}'},
       );
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
+        debugPrint("chats : $data");
         return (data['chats'] as List)
             .map((c) => ChatConversation.fromJson(c))
             .toList();
@@ -146,36 +149,72 @@ class _HomePageState extends State<HomePage> {
     socket.onError((err) => debugPrint('⚠️ Error: $err'));
   }
 
-  void _loadChat(ChatConversation chat) {
+  Future<String> saveBase64ToFile(String base64Data) async {
+    try {
+      final bytes = base64Decode(base64Data);
+      final dir = await getTemporaryDirectory();
+      final filePath =
+          '${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final file = File(filePath);
+      await file.writeAsBytes(bytes);
+      debugPrint("save byte : $filePath");
+      return filePath;
+    } catch (e) {
+      debugPrint('❌ Error saving base64 to file: $e');
+      return '';
+    }
+  }
+
+  Future<void> _loadChat(ChatConversation chat) async {
     if (_currentChat?.id != chat.id) {
       socket.dispose(); // Disconnect existing socket
+    }
+
+    final List<Map<String, dynamic>> processedMessages = [];
+
+    for (final msg in chat.messages) {
+      if (msg.type == 'image') {
+        File? imageFile;
+
+        if (File(msg.content).existsSync()) {
+          imageFile = File(msg.content);
+        } else if (msg.content.length > 100 && !msg.content.contains('/')) {
+          // Looks like base64 – save and use path
+          final path = await saveBase64ToFile(msg.content);
+          if (path.isNotEmpty) {
+            imageFile = File(path);
+            // 🔁 Replace original message content with new file path
+            msg.content = path;
+            debugPrint("image : $imageFile");
+            debugPrint("path : $path");
+          }
+        }
+
+        if (imageFile != null && imageFile.existsSync()) {
+          processedMessages.add({
+            'type': 'image',
+            'content': imageFile,
+            'fromUser': msg.fromUser,
+          });
+        }
+      } else {
+        // Handle text message
+        processedMessages.add({
+          'type': 'text',
+          'content': msg.content,
+          'fromUser': msg.fromUser,
+        });
+      }
     }
 
     setState(() {
       _currentChat = chat;
       _messages.clear();
-      _messages.addAll(
-        chat.messages
-            .map((m) {
-              if (m.type == 'image') {
-                final file = File(m.content);
-                return {
-                  'type': 'image',
-                  'content': file.existsSync() ? file : null,
-                  'fromUser': m.fromUser,
-                };
-              } else {
-                return {
-                  'type': 'text',
-                  'content': m.content,
-                  'fromUser': m.fromUser,
-                };
-              }
-            })
-            .where((m) => m['content'] != null)
-            .toList(),
-      );
+      _messages.addAll(processedMessages);
     });
+
+    // Save updated conversation with new file paths
+    await ChatStorage.saveConversation(chat);
   }
 
   @override
@@ -280,6 +319,37 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<bool> updateChatTitle(
+    String chatId,
+    String newTitle,
+    String? accessToken,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+          '${Globals.httpURI}/user/changeTitle',
+        ), // Replace with your actual backend URL
+        headers: {
+          'Content-Type': 'application/json',
+          'token': "$accessToken",
+          'chatid': chatId,
+        },
+        body: jsonEncode({'title': newTitle}),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('✅ Chat renamed successfully on server');
+        return true;
+      } else {
+        debugPrint('❌ Failed to rename chat: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('❌ Error in updateChatTitle: $e');
+      return false;
+    }
+  }
+
   Future<String?> _showRenameDialog(String currentName) async {
     TextEditingController controller = TextEditingController(text: currentName);
     return showDialog<String>(
@@ -326,6 +396,57 @@ class _HomePageState extends State<HomePage> {
         );
       },
     );
+  }
+
+  Future<bool?> togglePinStatus(String chatId, String? accessToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+          '${Globals.httpURI}/user/updatePin',
+        ), // Replace with your actual URL
+        headers: {
+          'Content-Type': 'application/json',
+          'token': '$accessToken',
+          'chatid': chatId,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['isPinned'] as bool;
+      } else {
+        debugPrint('❌ Failed to toggle pin: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ Error in togglePinStatus: $e');
+      return null;
+    }
+  }
+
+  Future<bool> deleteChatFromBackend(String chatId, String? accessToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+          '${Globals.httpURI}/user/deleteChat',
+        ), // Replace with actual URL
+        headers: {
+          'token': '$accessToken',
+          'chatid': chatId,
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        debugPrint('❌ Failed to delete chat: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('❌ Error deleting chat: $e');
+      return false;
+    }
   }
 
   Widget _buildDrawerSectionTitle(String title) {
@@ -452,32 +573,54 @@ class _HomePageState extends State<HomePage> {
                       onSelected: (value) async {
                         if (value == 'rename') {
                           final newName = await _showRenameDialog(chat.title);
+                          _disposeSocket();
                           if (newName != null && newName.trim().isNotEmpty) {
+                            bool done = await updateChatTitle(
+                              chat.id,
+                              newName,
+                              Globals.token,
+                            );
+                            if (done) {
+                              _connectWebSocket(chat.id);
+                              setState(() {
+                                chat.title = newName.trim();
+                              });
+                              await ChatStorage.saveConversations(_chatHistory);
+                            }
+                          }
+                        } else if (value == 'delete') {
+                          final success = await deleteChatFromBackend(
+                            chat.id,
+                            Globals.token,
+                          );
+                          if (success) {
                             setState(() {
-                              chat.title = newName.trim();
+                              _chatHistory.remove(chat);
+                              if (_currentChat?.id == chat.id) {
+                                _messages.clear();
+                                _currentChat = null;
+                              }
                             });
                             await ChatStorage.saveConversations(_chatHistory);
                           }
-                        } else if (value == 'delete') {
-                          setState(() {
-                            _chatHistory.remove(chat);
-                            if (_currentChat?.id == chat.id) {
-                              _messages.clear();
-                              _currentChat = null;
-                            }
-                          });
-                          await ChatStorage.saveConversations(_chatHistory);
                         } else if (value == 'pin') {
-                          setState(() {
-                            chat.isPinned = !chat.isPinned;
-                            _chatHistory.sort(
-                              (a, b) =>
-                                  (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0),
-                            );
-                          });
-                          await ChatStorage.saveConversations(_chatHistory);
+                          final result = await togglePinStatus(
+                            chat.id,
+                            Globals.token,
+                          );
+                          if (result != null) {
+                            setState(() {
+                              chat.isPinned = result;
+                              _chatHistory.sort(
+                                (a, b) =>
+                                    (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0),
+                              );
+                            });
+                            await ChatStorage.saveConversations(_chatHistory);
+                          }
                         }
                       },
+
                       itemBuilder:
                           (context) => [
                             const PopupMenuItem(

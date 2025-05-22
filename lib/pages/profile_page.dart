@@ -49,7 +49,7 @@ class ProfilePage extends StatelessWidget {
             // Logout Button
             GestureDetector(
               onTap: () {
-                Globals.token = null;
+                AuthService.signout();
 
                 // Navigate to SignInPage and remove all previous routes
                 Navigator.pushAndRemoveUntil(
@@ -102,7 +102,7 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileField(String title, String value) {
+  Widget _buildProfileField(String title, String? value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10.0),
       child: Container(
@@ -132,7 +132,7 @@ class ProfilePage extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             Text(
-              value,
+              "$value",
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
