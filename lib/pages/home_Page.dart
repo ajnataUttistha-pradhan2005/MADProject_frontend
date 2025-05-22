@@ -14,6 +14,7 @@ import 'package:mathsolver/pages/image_viewer_page.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:mathsolver/models/chat_models.dart';
 import 'package:mathsolver/services/chat_storage.dart';
+import 'package:http/http.dart' as http;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,19 +40,170 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _focusNode = FocusNode();
-    _initSocket();
-    _loadChats();
+    // _initSocket();
+    if (Globals.token != null) {
+      _checkAndLoadChats();
+    }
   }
 
-  void _loadChats() async {
-    final chats = await ChatStorage.loadConversations();
+  // void _loadChats() async {
+  //   final chats = await ChatStorage.loadConversations();
+  //   setState(() {
+  //     _chatHistory = chats;
+  //     if (chats.isNotEmpty) _loadChat(chats.last);
+  //   });
+  // }
+
+  // void _loadChat(ChatConversation chat) {
+  //   setState(() {
+  //     _currentChat = chat;
+  //     _messages.clear();
+  //     _messages.addAll(
+  //       chat.messages
+  //           .map((m) {
+  //             if (m.type == 'image') {
+  //               final file = File(m.content);
+  //               return {
+  //                 'type': 'image',
+  //                 'content': file.existsSync() ? file : null,
+  //                 'fromUser': m.fromUser,
+  //               };
+  //             } else {
+  //               return {
+  //                 'type': 'text',
+  //                 'content': m.content,
+  //                 'fromUser': m.fromUser,
+  //               };
+  //             }
+  //           })
+  //           .where((m) => m['content'] != null)
+  //           .toList(),
+  //     );
+  //   });
+  // }
+
+  void _checkAndLoadChats() async {
+    List<ChatConversation> localChats = await ChatStorage.loadConversations();
+
+    // If local is empty, fetch from backend
+    if (localChats.isEmpty) {
+      final fetched = await _fetchChatsFromBackend();
+      if (fetched.isNotEmpty) {
+        await ChatStorage.saveConversations(fetched);
+        localChats = fetched;
+      }
+    }
+
     setState(() {
-      _chatHistory = chats;
-      if (chats.isNotEmpty) _loadChat(chats.last);
+      _chatHistory = localChats;
+      if (localChats.isNotEmpty) _loadChat(localChats.last);
     });
   }
 
+  Future<List<ChatConversation>> _fetchChatsFromBackend() async {
+    try {
+      final res = await http.get(
+        Uri.parse('${Globals.httpURI}/chatsync'),
+        headers: {'token': '${Globals.token}'},
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return (data['chats'] as List)
+            .map((c) => ChatConversation.fromJson(c))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('❌ Failed to fetch chats: $e');
+    }
+    return [];
+  }
+
+  // void _initSocket() {
+  //   // String? token = Globals.token;
+  //   String? token = "token";
+  //   socket = IO.io('wss://endpoint', <String, dynamic>{
+  //     'transports': ['websocket'],
+  //     'autoConnect': true,
+  //     'extraHeaders': {'token': token},
+  //   });
+
+  //   socket.onConnect((_) {
+  //     // print('✅ Connected to WebSocket');
+  //   });
+
+  //   socket.on('bot_response', (data) {
+  //     // print("🤖 Bot Response: $data");
+  //     setState(() {
+  //       _messages.add({'type': 'text', 'content': data, 'fromUser': false});
+  //       _isLoading = false;
+  //     });
+  //     _scrollToBottom();
+
+  //     Future.microtask(() async {
+  //       _currentChat?.messages.add(
+  //         ChatMessage(type: 'text', content: data, fromUser: false),
+  //       );
+  //       if (_currentChat != null) {
+  //         await ChatStorage.saveConversation(_currentChat!);
+  //       }
+  //     });
+  //   });
+
+  //   socket.onDisconnect((_) {
+  //     // print('❌ Disconnected from WebSocket');
+  //   });
+
+  //   socket.onError((err) {
+  //     // print('⚠️ Socket error: $err');
+  //   });
+  // }
+
+  //
+
+  Future<void> _connectWebSocket(String chatId) async {
+    if (Globals.token == null || Globals.token!.isEmpty) return;
+
+    // Dispose previous if any
+    if (socket.connected) socket.disconnect();
+    socket.dispose();
+
+    socket = IO.io('wss://your-endpoint', <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': false,
+      'extraHeaders': {'token': Globals.token!, 'conversationId': chatId},
+    });
+
+    socket.connect();
+
+    socket.onConnect((_) {
+      debugPrint('✅ Connected to WebSocket');
+    });
+
+    socket.on('bot_response', (data) {
+      setState(() {
+        _messages.add({'type': 'text', 'content': data, 'fromUser': false});
+        _isLoading = false;
+      });
+      _scrollToBottom();
+
+      if (_currentChat != null) {
+        _currentChat!.messages.add(
+          ChatMessage(type: 'text', content: data, fromUser: false),
+        );
+        ChatStorage.saveConversation(_currentChat!);
+      }
+    });
+
+    socket.onDisconnect((_) => debugPrint('❌ Disconnected'));
+    socket.onError((err) => debugPrint('⚠️ Error: $err'));
+  }
+
   void _loadChat(ChatConversation chat) {
+    if (_currentChat?.id != chat.id) {
+      socket.dispose(); // Disconnect existing socket
+    }
+
     setState(() {
       _currentChat = chat;
       _messages.clear();
@@ -79,46 +231,6 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _initSocket() {
-    // String? token = Globals.token;
-    String? token = "token";
-    socket = IO.io('wss://endpoint', <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': true,
-      'extraHeaders': {'token': token},
-    });
-
-    socket.onConnect((_) {
-      // print('✅ Connected to WebSocket');
-    });
-
-    socket.on('bot_response', (data) {
-      // print("🤖 Bot Response: $data");
-      setState(() {
-        _messages.add({'type': 'text', 'content': data, 'fromUser': false});
-        _isLoading = false;
-      });
-      _scrollToBottom();
-
-      Future.microtask(() async {
-        _currentChat?.messages.add(
-          ChatMessage(type: 'text', content: data, fromUser: false),
-        );
-        if (_currentChat != null) {
-          await ChatStorage.saveConversation(_currentChat!);
-        }
-      });
-    });
-
-    socket.onDisconnect((_) {
-      // print('❌ Disconnected from WebSocket');
-    });
-
-    socket.onError((err) {
-      // print('⚠️ Socket error: $err');
-    });
-  }
-
   @override
   void dispose() {
     _focusNode.dispose();
@@ -126,8 +238,80 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  // void _handleSend(dynamic message) async {
+  //   _focusNode.unfocus();
+
+  //   final isText = message is String;
+  //   final messageData = {
+  //     'type': isText ? 'text' : 'image',
+  //     'content': message,
+  //     'fromUser': true,
+  //   };
+
+  //   setState(() {
+  //     _messages.add(messageData);
+  //     _isLoading = true;
+  //   });
+
+  //   _scrollToBottom();
+
+  //   if (isText) {
+  //     socket.emit('user_message', {'type': 'text', 'text': message});
+  //     debugPrint("✅ Text sent successfully.");
+  //   } else if (message is XFile) {
+  //     try {
+  //       final bytes = await message.readAsBytes();
+  //       final base64Image = base64Encode(bytes);
+  //       socket.emit('user_message', {'type': 'image', 'base64': base64Image});
+  //       debugPrint("✅ Image sent successfully (XFile).");
+  //     } catch (e) {
+  //       debugPrint("❌ Error sending image from XFile: $e");
+  //     }
+  //   } else if (message is File) {
+  //     try {
+  //       final bytes = await message.readAsBytes();
+  //       final base64Image = base64Encode(bytes);
+  //       socket.emit('user_message', {'type': 'image', 'base64': base64Image});
+  //       debugPrint("✅ Image sent successfully (File).");
+  //     } catch (e) {
+  //       debugPrint("❌ Error sending image from File: $e");
+  //     }
+  //   } else {
+  //     debugPrint("⚠️ Unsupported message type: ${message.runtimeType}");
+  //   }
+
+  //   if (_currentChat != null) {
+  //     _currentChat!.messages.add(
+  //       ChatMessage(
+  //         type: isText ? 'text' : 'image',
+  //         content: isText ? message : (message as File).path,
+  //         fromUser: true,
+  //       ),
+  //     );
+  //     final index = _chatHistory.indexWhere((c) => c.id == _currentChat!.id);
+  //     if (index != -1) {
+  //       _chatHistory[index] = _currentChat!;
+  //     }
+  //     await ChatStorage.saveConversations(_chatHistory);
+  //   }
+  // }
+
   void _handleSend(dynamic message) async {
     _focusNode.unfocus();
+
+    if (_currentChat == null) {
+      final newChat = ChatConversation(
+        userId: Globals.userId,
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: 'New Chat',
+        messages: [],
+      );
+      _chatHistory.add(newChat);
+      await ChatStorage.saveConversations(_chatHistory);
+      setState(() {
+        _currentChat = newChat;
+      });
+    }
 
     final isText = message is String;
     final messageData = {
@@ -143,31 +327,29 @@ class _HomePageState extends State<HomePage> {
 
     _scrollToBottom();
 
+    // ✅ Ensure socket is initialized and connected
+    if (socket == null || !socket.connected) {
+      await _connectWebSocket(_currentChat?.id ?? "");
+    }
+
     if (isText) {
       socket.emit('user_message', {'type': 'text', 'text': message});
       debugPrint("✅ Text sent successfully.");
-    } else if (message is XFile) {
+    } else if (message is XFile || message is File) {
       try {
-        final bytes = await message.readAsBytes();
-        final base64Image = base64Encode(bytes);
+        final file =
+            message is XFile
+                ? await message.readAsBytes()
+                : await (message as File).readAsBytes();
+        final base64Image = base64Encode(file);
         socket.emit('user_message', {'type': 'image', 'base64': base64Image});
-        debugPrint("✅ Image sent successfully (XFile).");
+        debugPrint("✅ Image sent successfully.");
       } catch (e) {
-        debugPrint("❌ Error sending image from XFile: $e");
+        debugPrint("❌ Error sending image: $e");
       }
-    } else if (message is File) {
-      try {
-        final bytes = await message.readAsBytes();
-        final base64Image = base64Encode(bytes);
-        socket.emit('user_message', {'type': 'image', 'base64': base64Image});
-        debugPrint("✅ Image sent successfully (File).");
-      } catch (e) {
-        debugPrint("❌ Error sending image from File: $e");
-      }
-    } else {
-      debugPrint("⚠️ Unsupported message type: ${message.runtimeType}");
     }
 
+    // Save message locally
     if (_currentChat != null) {
       _currentChat!.messages.add(
         ChatMessage(
@@ -177,9 +359,7 @@ class _HomePageState extends State<HomePage> {
         ),
       );
       final index = _chatHistory.indexWhere((c) => c.id == _currentChat!.id);
-      if (index != -1) {
-        _chatHistory[index] = _currentChat!;
-      }
+      if (index != -1) _chatHistory[index] = _currentChat!;
       await ChatStorage.saveConversations(_chatHistory);
     }
   }
@@ -310,6 +490,7 @@ class _HomePageState extends State<HomePage> {
                       icon: const Icon(Icons.add, color: Colors.white),
                       onPressed: () async {
                         final newChat = ChatConversation(
+                          userId: Globals.userId,
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
                           title: 'New Chat', // Changed from 'Chat X'
                           messages: [],
@@ -320,7 +501,9 @@ class _HomePageState extends State<HomePage> {
                           _messages.clear();
                         });
                         await ChatStorage.saveConversations(_chatHistory);
-                        Navigator.pop(context);
+                        if (Navigator.canPop(context)) {
+                          Navigator.pop(context);
+                        }
                       },
                     ),
                   ],

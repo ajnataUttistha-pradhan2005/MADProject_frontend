@@ -23,12 +23,14 @@ class ChatMessage {
 }
 
 class ChatConversation {
+  final String userId;
   final String id;
   String title;
   final List<ChatMessage> messages;
   bool isPinned;
 
   ChatConversation({
+    required this.userId,
     required this.id,
     required this.title,
     required this.messages,
@@ -36,6 +38,7 @@ class ChatConversation {
   });
 
   Map<String, dynamic> toJson() => {
+    'userId': userId,
     'id': id,
     'title': title,
     'messages': messages.map((m) => m.toJson()).toList(),
@@ -44,6 +47,7 @@ class ChatConversation {
 
   factory ChatConversation.fromJson(Map<String, dynamic> json) =>
       ChatConversation(
+        userId: json['userId'],
         id: json['id'],
         title: json['title'],
         messages:

@@ -12,7 +12,7 @@ class SignInPage extends StatefulWidget {
 }
 
 class _SignInPageState extends State<SignInPage> {
-  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _loading = false;
@@ -25,7 +25,7 @@ class _SignInPageState extends State<SignInPage> {
     });
 
     final result = await AuthService.signIn(
-      _usernameController.text,
+      _emailController.text,
       _passwordController.text,
     );
 
@@ -59,9 +59,9 @@ class _SignInPageState extends State<SignInPage> {
             ),
             const SizedBox(height: 30),
             TextField(
-              controller: _usernameController,
+              controller: _emailController,
               decoration: const InputDecoration(
-                labelText: "Username",
+                labelText: "Email",
                 labelStyle: TextStyle(color: Colors.white),
               ),
               style: const TextStyle(color: Colors.white),
