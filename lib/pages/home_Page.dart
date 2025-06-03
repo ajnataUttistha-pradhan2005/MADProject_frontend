@@ -16,6 +16,8 @@ import 'package:mathsolver/models/chat_models.dart';
 import 'package:mathsolver/services/chat_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'package:uuid/uuid.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -91,7 +93,7 @@ class _HomePageState extends State<HomePage> {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        // debugPrint("chats : $data");
+        debugPrint("chats : $data");
         return (data['chats'] as List)
             .map((c) => ChatConversation.fromJson(c))
             .toList();
@@ -163,21 +165,42 @@ class _HomePageState extends State<HomePage> {
     socket.onError((err) => debugPrint('⚠️ Error: $err'));
   }
 
-  Future<String> saveBase64ToFile(String base64Data) async {
-    try {
-      final bytes = base64Decode(base64Data);
-      final dir = await getTemporaryDirectory();
-      final filePath =
-          '${dir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final file = File(filePath);
-      await file.writeAsBytes(bytes);
-      debugPrint("save byte : $filePath");
-      return filePath;
-    } catch (e) {
-      debugPrint('❌ Error saving base64 to file: $e');
-      return '';
-    }
-  }
+  // String fixBase64(String base64Str) {
+  //   int remainder = base64Str.length % 4;
+  //   if (remainder != 0) {
+  //     base64Str += '=' * (4 - remainder);
+  //   }
+  //   return base64Str;
+  // }
+
+  // /// Save base64 string as image in cache and return file path
+  // Future<String> saveBase64ToCache(String base64Str) async {
+  //   try {
+  //     debugPrint("👁️ ENTER saveBase64ToCache");
+
+  //     final fixedBase64 = fixBase64(base64Str);
+  //     final bytes = base64Decode(fixedBase64);
+  //     debugPrint("👁️ Decoded base64, byte length: ${bytes.length}");
+
+  //     final tempDir =
+  //         await getTemporaryDirectory(); // e.g., /data/user/0/com.example/cache
+  //     final folderId = const Uuid().v4();
+  //     final uniqueDir = Directory(path.join(tempDir.path, folderId));
+  //     await uniqueDir.create(recursive: true);
+
+  //     final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+  //     final filePath = path.join(uniqueDir.path, fileName);
+
+  //     final file = File(filePath);
+  //     await file.writeAsBytes(bytes, flush: true);
+  //     debugPrint("✅ File saved to: $filePath (exists? ${file.existsSync()})");
+
+  //     return file.path;
+  //   } catch (e) {
+  //     debugPrint('❌ Error saving base64 to cache: $e');
+  //     return '';
+  //   }
+  // }
 
   Future<void> _loadChat(ChatConversation chat) async {
     if (_currentChat?.id != chat.id) {
@@ -187,47 +210,62 @@ class _HomePageState extends State<HomePage> {
     final List<Map<String, dynamic>> processedMessages = [];
 
     for (final msg in chat.messages) {
-      if (msg.type == 'image') {
-        File? imageFile;
+      try {
+        if (msg.type == 'image') {
+          debugPrint("🖼️ Processing image message: ${msg.content}");
 
-        if (File(msg.content).existsSync()) {
-          imageFile = File(msg.content);
-        } else if (msg.content.length > 100 && !msg.content.contains('/')) {
-          // Looks like base64 – save and use path
-          final path = await saveBase64ToFile(msg.content);
-          if (path.isNotEmpty) {
-            imageFile = File(path);
-            // 🔁 Replace original message content with new file path
-            msg.content = path;
-            debugPrint("image : $imageFile");
-            debugPrint("path : $path");
+          // Case 1: It's a local file path
+          if (msg.content is String && msg.content.toString().startsWith('/')) {
+            final file = File(msg.content);
+            if (await file.exists()) {
+              debugPrint("✅ Found local file: ${file.path}");
+              processedMessages.add({
+                'type': 'image',
+                'content': file,
+                'fromUser': msg.fromUser,
+              });
+            } else {
+              debugPrint("🚫 File does not exist: ${file.path}");
+            }
+          }
+          // Case 2: It's a URL
+          else if (msg.content is String &&
+              msg.content.toString().startsWith('http')) {
+            debugPrint("🌐 Image URL detected: ${msg.content}");
+            processedMessages.add({
+              'type': 'image',
+              'content': msg.content, // String URL
+              'fromUser': msg.fromUser,
+            });
+          }
+          // Case 3: Invalid image content
+          else {
+            debugPrint("❌ Invalid image content: ${msg.content}");
           }
         }
-
-        if (imageFile != null && imageFile.existsSync()) {
+        // Handle text
+        else {
+          debugPrint("💬 Received text: ${msg.content}");
           processedMessages.add({
-            'type': 'image',
-            'content': imageFile,
+            'type': 'text',
+            'content': msg.content,
             'fromUser': msg.fromUser,
           });
         }
-      } else {
-        // Handle text message
-        processedMessages.add({
-          'type': 'text',
-          'content': msg.content,
-          'fromUser': msg.fromUser,
-        });
+      } catch (e, stack) {
+        debugPrint("❗ Error processing message: $e\n$stack");
+        // Skip this message gracefully
+        continue;
       }
     }
 
+    // Update UI and local storage
     setState(() {
       _currentChat = chat;
       _messages.clear();
       _messages.addAll(processedMessages);
     });
 
-    // Save updated conversation with new file paths
     await ChatStorage.saveConversation(chat);
   }
 
@@ -870,10 +908,78 @@ class _HomePageState extends State<HomePage> {
                         );
                       }
 
+                      // final message = _messages[index];
+                      // final isUser = message['fromUser'] ?? false;
+                      // final type = message['type'];
+                      // final content = message['content'];
+
+                      // return Align(
+                      //   alignment:
+                      //       isUser
+                      //           ? Alignment.centerRight
+                      //           : Alignment.centerLeft,
+                      //   child: Padding(
+                      //     padding: const EdgeInsets.symmetric(vertical: 5),
+                      //     child:
+                      //         type == 'text'
+                      //             ? Container(
+                      //               padding: const EdgeInsets.all(12),
+                      //               decoration: BoxDecoration(
+                      //                 color:
+                      //                     isUser
+                      //                         ? const Color(0xFF29292B)
+                      //                         : Colors.transparent,
+                      //                 borderRadius: BorderRadius.circular(20),
+                      //               ),
+                      //               child: Text(
+                      //                 content,
+                      //                 style: TextStyle(
+                      //                   color:
+                      //                       isUser
+                      //                           ? const Color(0xFFB3B3B3)
+                      //                           : Colors.white,
+                      //                   fontFamily: "LexendDeca",
+                      //                   fontWeight: FontWeight.w700,
+                      //                   fontSize: 15,
+                      //                 ),
+                      //               ),
+                      //             )
+                      //             : ClipRRect(
+                      //               borderRadius: BorderRadius.circular(20),
+                      //               child: GestureDetector(
+                      //                 onTap: () {
+                      //                   Navigator.push(
+                      //                     context,
+                      //                     MaterialPageRoute(
+                      //                       builder:
+                      //                           (_) => ImageViewerPage(
+                      //                             imageFile: content,
+                      //                           ),
+                      //                     ),
+                      //                   );
+                      //                 },
+                      //                 child: Image.file(
+                      //                   content as File,
+                      //                   width: 200,
+                      //                 ),
+                      //               ),
+                      //             ),
+                      //   ),
+                      // );
                       final message = _messages[index];
                       final isUser = message['fromUser'] ?? false;
                       final type = message['type'];
-                      final content = message['content'];
+                      final contentRaw = message['content'];
+
+                      // Safely handle different types
+                      String contentStr = '';
+                      if (contentRaw is String) {
+                        contentStr = contentRaw.trim();
+                      } else if (contentRaw is File) {
+                        contentStr = contentRaw.path;
+                      } else {
+                        contentStr = contentRaw.toString().trim(); // Fallback
+                      }
 
                       return Align(
                         alignment:
@@ -894,7 +1000,7 @@ class _HomePageState extends State<HomePage> {
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
-                                      content,
+                                      contentStr,
                                       style: TextStyle(
                                         color:
                                             isUser
@@ -915,15 +1021,45 @@ class _HomePageState extends State<HomePage> {
                                           MaterialPageRoute(
                                             builder:
                                                 (_) => ImageViewerPage(
-                                                  imageFile: content,
+                                                  imageContent: contentStr,
                                                 ),
                                           ),
                                         );
                                       },
-                                      child: Image.file(
-                                        content as File,
-                                        width: 200,
-                                      ),
+                                      child:
+                                          contentStr.startsWith('http')
+                                              ? Image.network(
+                                                contentStr,
+                                                width: 200,
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => const Text(
+                                                      '🛑 Failed to load image',
+                                                      style: TextStyle(
+                                                        color: Colors.red,
+                                                      ),
+                                                    ),
+                                              )
+                                              : Image.file(
+                                                File(contentStr),
+                                                width: 200,
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => const Text(
+                                                      '🛑 Failed to load image',
+                                                      style: TextStyle(
+                                                        color: Colors.red,
+                                                      ),
+                                                    ),
+                                              ),
                                     ),
                                   ),
                         ),
