@@ -29,4 +29,22 @@ class ChatStorage {
     }
     await saveConversations(chats);
   }
+
+  static Future<void> presentStoredConversations() async {
+    final chats = await loadConversations();
+    if (chats.isEmpty) {
+      print('❌ No stored conversations.');
+      return;
+    }
+
+    print('✅ Stored Conversations:');
+    for (var chat in chats) {
+      print('---------------------------');
+      print('ID: ${chat.id}');
+      print('Title: ${chat.title}');
+      print('Messages Count: ${chat.messages.length}');
+      print('Is Pinned: ${chat.isPinned}');
+    }
+    print('---------------------------');
+  }
 }

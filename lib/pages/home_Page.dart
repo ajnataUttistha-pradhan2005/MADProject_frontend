@@ -50,23 +50,36 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _checkAndLoadChats() async {
+  Future<void> _checkAndLoadChats() async {
     List<ChatConversation> localChats = await ChatStorage.loadConversations();
-    List<ChatConversation> userChats =
-        localChats.where((chat) => chat.userId == Globals.userId).toList();
-    // If local is empty, fetch from backend
-    if (userChats.isEmpty) {
-      final fetched = await _fetchChatsFromBackend();
-      if (fetched.isNotEmpty) {
-        await ChatStorage.saveConversations(fetched);
-        userChats = fetched;
+    List<ChatConversation> userLocalChats =
+        localChats.where((c) => c.userId == Globals.userId).toList();
+
+    final backendChats = await _fetchChatsFromBackend();
+
+    if (backendChats.isNotEmpty) {
+      final needsSync =
+          backendChats.length != userLocalChats.length ||
+          !_chatsMatch(backendChats, userLocalChats);
+
+      if (needsSync) {
+        await ChatStorage.saveConversations(backendChats);
+        userLocalChats = backendChats;
       }
     }
 
     setState(() {
-      _chatHistory = userChats;
-      if (userChats.isNotEmpty) _loadChat(userChats.last);
+      _chatHistory = userLocalChats;
+      if (userLocalChats.isNotEmpty) _loadChat(userLocalChats.last);
     });
+  }
+
+  bool _chatsMatch(List<ChatConversation> a, List<ChatConversation> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id || a[i].title != b[i].title) return false;
+    }
+    return true;
   }
 
   Future<List<ChatConversation>> _fetchChatsFromBackend() async {
@@ -78,7 +91,7 @@ class _HomePageState extends State<HomePage> {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        debugPrint("chats : $data");
+        // debugPrint("chats : $data");
         return (data['chats'] as List)
             .map((c) => ChatConversation.fromJson(c))
             .toList();
@@ -98,8 +111,8 @@ class _HomePageState extends State<HomePage> {
       socket.dispose();
     } catch (_) {}
 
-    debugPrint("berfore chatId : $chatId");
-    debugPrint("token : ${Globals.token}");
+    // debugPrint("berfore chatId : $chatId");
+    // debugPrint("token : ${Globals.token}");
 
     socket = IO.io(
       '${Globals.websocketURI}?chatId=$chatId', // 👈 Make URI unique
@@ -130,7 +143,7 @@ class _HomePageState extends State<HomePage> {
       } else {
         message = jsonEncode(data); // fallback to avoid crash
       }
-      debugPrint('$data');
+      // debugPrint('$data');
       setState(() {
         _messages.add({'type': 'text', 'content': message, 'fromUser': false});
         _isLoading = false;
@@ -141,6 +154,7 @@ class _HomePageState extends State<HomePage> {
         _currentChat!.messages.add(
           ChatMessage(type: 'text', content: message, fromUser: false),
         );
+
         ChatStorage.saveConversation(_currentChat!);
       }
     });
@@ -228,15 +242,15 @@ class _HomePageState extends State<HomePage> {
     try {
       if (socket.connected) socket.disconnect();
       socket.dispose();
+      // debugPrint('✅ disconnected');
     } catch (e) {
-      debugPrint('Socket disposal error: $e');
+      debugPrint('❌ Error disconnecting socket: $e');
     }
   }
 
-  void _handleSend(dynamic message) async {
+  Future<void> _handleSend(dynamic message) async {
     _focusNode.unfocus();
 
-    // Step 1: Create a new chat if needed
     if (_currentChat == null) {
       final newChat = ChatConversation(
         userId: Globals.userId,
@@ -246,12 +260,11 @@ class _HomePageState extends State<HomePage> {
       );
       _chatHistory.add(newChat);
       await ChatStorage.saveConversations(_chatHistory);
-      _currentChat = newChat; // ✅ No setState here – avoid race condition
+      _currentChat = newChat;
     }
 
     final isText = message is String;
-
-    // Step 2: Add user message to UI
+    debugPrint("✅✅✅✅✅ in handle image or text checking : $message");
     setState(() {
       _messages.add({
         'type': isText ? 'text' : 'image',
@@ -263,16 +276,11 @@ class _HomePageState extends State<HomePage> {
 
     _scrollToBottom();
 
-    // ✅ Step 3: Connect socket with guaranteed correct chat ID
     final chatId = _currentChat!.id;
-    _disposeSocket();
-    if (!socket.connected ||
-        socket.io.uri != Globals.websocketURI ||
-        socket.io.options?['extraHeaders']?['chatId'] != chatId) {
-      await _connectWebSocket(chatId);
-    }
+    _disposeSocket(); // Ensure fresh connection
 
-    // Step 4: Emit message
+    await _connectWebSocket(chatId); // Reconnect with updated ID
+
     if (isText) {
       socket.emit('user_message', {'type': 'text', 'text': message});
     } else {
@@ -288,19 +296,17 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    // Step 5: Save message locally
-    if (_currentChat != null) {
-      _currentChat!.messages.add(
-        ChatMessage(
-          type: isText ? 'text' : 'image',
-          content: isText ? message : (message as File).path,
-          fromUser: true,
-        ),
-      );
-      final index = _chatHistory.indexWhere((c) => c.id == _currentChat!.id);
-      if (index != -1) _chatHistory[index] = _currentChat!;
-      await ChatStorage.saveConversations(_chatHistory);
-    }
+    _currentChat!.messages.add(
+      ChatMessage(
+        type: isText ? 'text' : 'image',
+        content: isText ? message : (message as File).path,
+        fromUser: true,
+      ),
+    );
+
+    final index = _chatHistory.indexWhere((c) => c.id == _currentChat!.id);
+    if (index != -1) _chatHistory[index] = _currentChat!;
+    await ChatStorage.saveConversations(_chatHistory);
   }
 
   void _scrollToBottom() {
@@ -324,11 +330,10 @@ class _HomePageState extends State<HomePage> {
     String newTitle,
     String? accessToken,
   ) async {
+    _disposeSocket(); // 👈 Disconnect WebSocket before making HTTP call
     try {
       final response = await http.post(
-        Uri.parse(
-          '${Globals.httpURI}/user/changeTitle',
-        ), // Replace with your actual backend URL
+        Uri.parse('${Globals.httpURI}/user/changeTitle'),
         headers: {
           'Content-Type': 'application/json',
           'token': "$accessToken",
@@ -339,6 +344,8 @@ class _HomePageState extends State<HomePage> {
 
       if (response.statusCode == 200) {
         debugPrint('✅ Chat renamed successfully on server');
+        // Optional: reload updated chats from backend
+        await _checkAndLoadChats();
         return true;
       } else {
         debugPrint('❌ Failed to rename chat: ${response.body}');
@@ -399,11 +406,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<bool?> togglePinStatus(String chatId, String? accessToken) async {
+    _disposeSocket(); // 👈 Disconnect WebSocket before making HTTP call
+    debugPrint("🔁 Toggling pin status for chatId: $chatId");
+
     try {
       final response = await http.post(
-        Uri.parse(
-          '${Globals.httpURI}/user/updatePin',
-        ), // Replace with your actual URL
+        Uri.parse('${Globals.httpURI}/user/updatePin'),
         headers: {
           'Content-Type': 'application/json',
           'token': '$accessToken',
@@ -413,7 +421,13 @@ class _HomePageState extends State<HomePage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['isPinned'] as bool;
+        final isPinned = data['isPinned'] as bool;
+        debugPrint('📌 Chat pin status updated: $isPinned');
+
+        // Optional: Reload chats if needed to ensure sync
+        // await _checkAndLoadChats();
+
+        return isPinned;
       } else {
         debugPrint('❌ Failed to toggle pin: ${response.body}');
         return null;
@@ -425,26 +439,28 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<bool> deleteChatFromBackend(String chatId, String? accessToken) async {
+    _disposeSocket(); // 👈 Disconnect WebSocket before HTTP call
+    debugPrint("inside delete HTTP request for chatId: ${_currentChat?.id}");
+
     try {
       final response = await http.post(
-        Uri.parse(
-          '${Globals.httpURI}/user/deleteChat',
-        ), // Replace with actual URL
+        Uri.parse('${Globals.httpURI}/user/deleteChat'),
         headers: {
+          'Content-Type': 'application/json',
           'token': '$accessToken',
           'chatid': chatId,
-          'Content-Type': 'application/json',
         },
       );
 
       if (response.statusCode == 200) {
+        debugPrint('✅ Chat deleted successfully from server');
         return true;
       } else {
         debugPrint('❌ Failed to delete chat: ${response.body}');
         return false;
       }
     } catch (e) {
-      debugPrint('❌ Error deleting chat: $e');
+      debugPrint('❌ Error in deleteChatFromBackend: $e');
       return false;
     }
   }
@@ -573,8 +589,9 @@ class _HomePageState extends State<HomePage> {
                       onSelected: (value) async {
                         if (value == 'rename') {
                           final newName = await _showRenameDialog(chat.title);
-                          _disposeSocket();
+
                           if (newName != null && newName.trim().isNotEmpty) {
+                            debugPrint("✅✅✅✅✅ rename");
                             bool done = await updateChatTitle(
                               chat.id,
                               newName,
@@ -589,6 +606,7 @@ class _HomePageState extends State<HomePage> {
                             }
                           }
                         } else if (value == 'delete') {
+                          debugPrint("✅✅✅✅✅ delete");
                           final success = await deleteChatFromBackend(
                             chat.id,
                             Globals.token,
@@ -604,18 +622,22 @@ class _HomePageState extends State<HomePage> {
                             await ChatStorage.saveConversations(_chatHistory);
                           }
                         } else if (value == 'pin') {
-                          final result = await togglePinStatus(
+                          debugPrint("✅✅✅✅✅ pin/unpin");
+                          final newIsPinned = await togglePinStatus(
                             chat.id,
                             Globals.token,
                           );
-                          if (result != null) {
+
+                          if (newIsPinned != null &&
+                              newIsPinned != chat.isPinned) {
                             setState(() {
-                              chat.isPinned = result;
+                              chat.isPinned = newIsPinned;
                               _chatHistory.sort(
                                 (a, b) =>
                                     (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0),
                               );
                             });
+
                             await ChatStorage.saveConversations(_chatHistory);
                           }
                         }
@@ -638,6 +660,7 @@ class _HomePageState extends State<HomePage> {
                           ],
                     ),
                     onTap: () {
+                      debugPrint("Tapped chat ID: ${chat.id}");
                       setState(() {
                         _loadChat(chat);
                       });
@@ -680,38 +703,65 @@ class _HomePageState extends State<HomePage> {
                                     final newName = await _showRenameDialog(
                                       chat.title,
                                     );
+
                                     if (newName != null &&
                                         newName.trim().isNotEmpty) {
+                                      debugPrint("✅✅✅✅✅ rename");
+                                      bool done = await updateChatTitle(
+                                        chat.id,
+                                        newName,
+                                        Globals.token,
+                                      );
+                                      if (done) {
+                                        _connectWebSocket(chat.id);
+                                        setState(() {
+                                          chat.title = newName.trim();
+                                        });
+                                        await ChatStorage.saveConversations(
+                                          _chatHistory,
+                                        );
+                                      }
+                                    }
+                                  } else if (value == 'delete') {
+                                    debugPrint("✅✅✅✅✅ delete");
+                                    final success = await deleteChatFromBackend(
+                                      chat.id,
+                                      Globals.token,
+                                    );
+                                    if (success) {
                                       setState(() {
-                                        chat.title = newName.trim();
+                                        _chatHistory.remove(chat);
+                                        if (_currentChat?.id == chat.id) {
+                                          _messages.clear();
+                                          _currentChat = null;
+                                        }
                                       });
                                       await ChatStorage.saveConversations(
                                         _chatHistory,
                                       );
                                     }
-                                  } else if (value == 'delete') {
-                                    setState(() {
-                                      _chatHistory.remove(chat);
-                                      if (_currentChat?.id == chat.id) {
-                                        _messages.clear();
-                                        _currentChat = null;
-                                      }
-                                    });
-                                    await ChatStorage.saveConversations(
-                                      _chatHistory,
-                                    );
                                   } else if (value == 'pin') {
-                                    setState(() {
-                                      chat.isPinned = !chat.isPinned;
-                                      _chatHistory.sort(
-                                        (a, b) =>
-                                            (b.isPinned ? 1 : 0) -
-                                            (a.isPinned ? 1 : 0),
-                                      );
-                                    });
-                                    await ChatStorage.saveConversations(
-                                      _chatHistory,
+                                    debugPrint("✅✅✅✅✅ pin/unpin");
+                                    final newIsPinned = await togglePinStatus(
+                                      chat.id,
+                                      Globals.token,
                                     );
+
+                                    if (newIsPinned != null &&
+                                        newIsPinned != chat.isPinned) {
+                                      setState(() {
+                                        chat.isPinned = newIsPinned;
+                                        _chatHistory.sort(
+                                          (a, b) =>
+                                              (b.isPinned ? 1 : 0) -
+                                              (a.isPinned ? 1 : 0),
+                                        );
+                                      });
+
+                                      await ChatStorage.saveConversations(
+                                        _chatHistory,
+                                      );
+                                    }
                                   }
                                 },
                                 itemBuilder:
@@ -733,6 +783,7 @@ class _HomePageState extends State<HomePage> {
                                     ],
                               ),
                               onTap: () {
+                                debugPrint("Tapped chat ID: ${chat.id}");
                                 setState(() {
                                   _loadChat(chat);
                                 });
