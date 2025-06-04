@@ -1,10 +1,8 @@
 // globals.dart
 
 class Globals {
-  static String websocketURI =
-      'wss://5828-2406-7400-10b-89b7-c937-77a-1f1e-5ef0.ngrok-free.app';
-  static String httpURI =
-      'https://5828-2406-7400-10b-89b7-c937-77a-1f1e-5ef0.ngrok-free.app';
+  static String websocketURI = 'wss://enpoint';
+  static String httpURI = 'https://enpoint';
 
   static String userId = "0";
   static String? username;

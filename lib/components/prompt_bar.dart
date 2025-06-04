@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:saver_gallery/saver_gallery.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class PromptBar extends StatefulWidget {
   final TextEditingController controller;
@@ -142,27 +144,84 @@ class _PromptBarState extends State<PromptBar> {
     );
   }
 
+  // void _pickMedia(BuildContext context, ImageSource source) async {
+  //   final ImagePicker picker = ImagePicker();
+  //   final XFile? pickedFile = await picker.pickImage(source: source);
+
+  //   if (pickedFile != null) {
+  //     File imageFile = File(pickedFile.path);
+
+  //     if (source == ImageSource.camera) {
+  //       Uint8List fileBytes = await imageFile.readAsBytes();
+  //       String fileName =
+  //           'captured_${DateTime.now().millisecondsSinceEpoch}${path.extension(pickedFile.path)}';
+  //       await SaverGallery.saveImage(
+  //         fileBytes,
+  //         fileName: fileName,
+  //         skipIfExists: false,
+  //       );
+  //     }
+
+  //     widget.onSend(imageFile); // ✅ Send image to HomePage
+  //   } else {
+  //     print("No image selected");
+  //   }
+  // }
+
   void _pickMedia(BuildContext context, ImageSource source) async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? pickedFile = await picker.pickImage(source: source);
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(source: source);
 
-    if (pickedFile != null) {
-      File imageFile = File(pickedFile.path);
-
-      if (source == ImageSource.camera) {
-        Uint8List fileBytes = await imageFile.readAsBytes();
-        String fileName =
-            'captured_${DateTime.now().millisecondsSinceEpoch}${path.extension(pickedFile.path)}';
-        await SaverGallery.saveImage(
-          fileBytes,
-          fileName: fileName,
-          skipIfExists: false,
-        );
+      if (pickedFile == null) {
+        debugPrint("⚠️ No image selected");
+        return;
       }
 
-      widget.onSend(imageFile); // ✅ Send image to HomePage
-    } else {
-      print("No image selected");
+      File originalFile = File(pickedFile.path);
+      File finalFile = originalFile;
+
+      final int originalSizeKB = await originalFile.length() ~/ 1024;
+      debugPrint('📸 Original file size: $originalSizeKB KB');
+
+      // ✅ Only compress if from camera and size > 1MB
+      if (source == ImageSource.camera && originalSizeKB > 1024) {
+        try {
+          final dir = await getTemporaryDirectory();
+          final targetPath = path.join(
+            dir.absolute.path,
+            "compressed_${DateTime.now().millisecondsSinceEpoch}.jpg",
+          );
+
+          final XFile? compressedXFile =
+              await FlutterImageCompress.compressAndGetFile(
+                originalFile.absolute.path,
+                targetPath,
+                quality: 85, // Tuned for OCR
+              );
+
+          if (compressedXFile != null) {
+            finalFile = File(compressedXFile.path);
+            final int compressedSizeKB = await finalFile.length() ~/ 1024;
+            debugPrint("✅ Compressed file size: $compressedSizeKB KB");
+          } else {
+            debugPrint("❌ Compression failed, using original file.");
+          }
+        } catch (e) {
+          debugPrint("❌ Error during compression: $e");
+        }
+      }
+
+      // ✅ Send image (compressed or original) to handler
+      widget.onSend(finalFile);
+    } catch (e, stack) {
+      debugPrint("❌ Unexpected error in _pickMedia: $e");
+      debugPrint(stack.toString());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Something went wrong while picking the image."),
+        ),
+      );
     }
   }
 }
