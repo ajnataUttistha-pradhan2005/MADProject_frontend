@@ -1,25 +1,57 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 class GradientAvatar extends StatelessWidget {
-  final String imageUrl;
+  final String imagePath;
   final bool isAsset;
+  final bool isFile;
   final double size;
   final double borderWidth;
   final List<Color> gradientColors;
 
   const GradientAvatar({
     super.key,
-    required this.imageUrl, // Image is required
+    required this.imagePath, // Can be asset path, file path, or URL
     this.isAsset = false,
+    this.isFile = false,
     this.size = 80,
     this.borderWidth = 4,
     this.gradientColors = const [
       Color(0xFF1D7DFA),
       Color(0xFF8617C7),
-      // Color(0XFF4B148D),
       Color.fromARGB(255, 213, 14, 18),
     ],
   });
+
+  Widget _buildImage() {
+    try {
+      if (imagePath.isEmpty) return _fallbackIcon();
+
+      // Priority: Manual flags -> Detect
+      if (isAsset ||
+          (!imagePath.startsWith('http') && !File(imagePath).existsSync())) {
+        return Image.asset(imagePath, fit: BoxFit.cover);
+      } else if (isFile || File(imagePath).existsSync()) {
+        return Image.file(File(imagePath), fit: BoxFit.cover);
+      } else {
+        return Image.network(
+          imagePath,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackIcon(),
+        );
+      }
+    } catch (e) {
+      print('GradientAvatar error: $e');
+      return _fallbackIcon();
+    }
+  }
+
+  Widget _fallbackIcon() {
+    return Container(
+      color: Colors.grey.shade300,
+      child: Icon(Icons.person, size: size / 2, color: Colors.grey.shade600),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,12 +67,7 @@ class GradientAvatar extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
       ),
-      child: ClipOval(
-        child:
-            isAsset
-                ? Image.asset(imageUrl, fit: BoxFit.cover)
-                : Image.network(imageUrl, fit: BoxFit.cover),
-      ),
+      child: ClipOval(child: _buildImage()),
     );
   }
 }

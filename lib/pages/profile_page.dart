@@ -1,11 +1,81 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mathsolver/components/gradient_Avatar.dart';
 import 'package:mathsolver/globals.dart';
-import 'package:mathsolver/pages/sign_in_page.dart'; // adjust path if needed
+import 'package:mathsolver/pages/sign_in_page.dart';
 import 'package:mathsolver/services/auth_service.dart';
+import 'package:mathsolver/services/profile_service.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late TextEditingController _usernameController;
+  late TextEditingController _emailController;
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
+
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController = TextEditingController(text: Globals.username ?? '');
+    _emailController = TextEditingController(text: Globals.email ?? '');
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      setState(() {
+        _selectedImage = File(picked.path);
+      });
+    }
+  }
+
+  Future<void> _submitChanges() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    bool success = await ProfileService.editProfile(
+      userId: Globals.userId!,
+      username: _usernameController.text.trim(),
+      email: _emailController.text.trim(),
+      imageFile: _selectedImage,
+    );
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (success) {
+      // Update global vars (you might want to reload from backend ideally)
+      Globals.username = _usernameController.text.trim();
+      Globals.email = _emailController.text.trim();
+
+      // Show success feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully!')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update profile.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,17 +103,60 @@ class ProfilePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Center(
-              child: GradientAvatar(
-                imageUrl: 'assets/icons/profileImg.jpeg',
-                isAsset: true,
-                size: 120,
-                borderWidth: 3,
+            GestureDetector(
+              onTap: _pickImage,
+              child: Center(
+                child:
+                    _selectedImage != null
+                        ? CircleAvatar(
+                          radius: 60,
+                          backgroundImage: FileImage(_selectedImage!),
+                        )
+                        : GradientAvatar(
+                          imagePath:
+                              Globals.profileImg ??
+                              'assets/icons/profileImg.jpeg',
+                          isAsset: Globals.profileImg == null,
+                          size: 120,
+                          borderWidth: 3,
+                        ),
               ),
             ),
+            const SizedBox(height: 10),
+            Text(
+              'Tap image to change',
+              style: TextStyle(color: Colors.grey[400], fontSize: 14),
+            ),
             const SizedBox(height: 30),
-            _buildProfileField("Name", Globals.username ?? "John Doe"),
-            _buildProfileField("Email", Globals.email ?? "johndoe@example.com"),
+
+            // Editable Username
+            _buildEditableField("Name", _usernameController),
+
+            // Editable Email
+            _buildEditableField("Email", _emailController),
+
+            const SizedBox(height: 40),
+
+            _isLoading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                  onPressed: _submitChanges,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 40,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    backgroundColor: Colors.blueAccent,
+                  ),
+                  child: const Text(
+                    'Save Changes',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+
             const SizedBox(height: 40),
 
             // Logout Button
@@ -51,14 +164,12 @@ class ProfilePage extends StatelessWidget {
               onTap: () {
                 AuthService.signout();
 
-                // Navigate to SignInPage and remove all previous routes
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (_) => const SignInPage()),
-                  (route) => false, // Remove all previous routes
+                  (route) => false,
                 );
               },
-
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -78,7 +189,7 @@ class ProfilePage extends StatelessWidget {
                     BoxShadow(
                       color: Colors.blueAccent.withOpacity(0.2),
                       blurRadius: 12,
-                      offset: Offset(0, 4),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
@@ -102,46 +213,24 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileField(String title, String? value) {
+  Widget _buildEditableField(String label, TextEditingController controller) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10.0),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1E),
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.purpleAccent.withOpacity(0.1),
-              blurRadius: 10,
-              spreadRadius: 2,
-            ),
-          ],
+      child: TextField(
+        controller: controller,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.grey),
+          filled: true,
+          fillColor: const Color(0xFF1C1C1E),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide.none,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-                fontFamily: "LexendDeca",
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              "$value",
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontFamily: "LexendDeca",
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+        keyboardType:
+            label == "Email" ? TextInputType.emailAddress : TextInputType.text,
       ),
     );
   }

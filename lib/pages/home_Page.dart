@@ -875,8 +875,8 @@ class _HomePageState extends State<HomePage> {
                 );
               },
               child: GradientAvatar(
-                imageUrl: 'assets/icons/profileImg.jpeg',
-                isAsset: true,
+                imagePath: Globals.profileImg ?? 'assets/icons/profileImg.jpeg',
+                isAsset: Globals.profileImg == null,
                 size: 50,
                 borderWidth: 3,
               ),
