@@ -139,7 +139,7 @@ class _ProfilePageState extends State<ProfilePage>
     const twitterBlue = Color(0xFF1DA1F2);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: const Color.fromARGB(255, 0, 0, 0),
       body: SafeArea(
         child: AnimatedBuilder(
           animation: _logoutAnimController,
@@ -380,7 +380,7 @@ class _ProfilePageState extends State<ProfilePage>
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Colors.transparent),
+            borderSide: const BorderSide(color: Colors.white24),
           ),
         ),
         keyboardType:
