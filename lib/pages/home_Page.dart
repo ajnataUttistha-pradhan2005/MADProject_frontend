@@ -718,7 +718,11 @@ class _HomePageState extends State<HomePage> {
                         ? ListView.builder(
                           itemCount: recent.length,
                           itemBuilder: (context, index) {
-                            final chat = recent[index];
+                            final reversedRecent = recent.reversed.toList();
+                            if (index >= reversedRecent.length) {
+                              return const SizedBox(); // Or a fallback widget
+                            }
+                            final chat = reversedRecent[index];
                             return ListTile(
                               leading: const Icon(
                                 Icons.chat_bubble_outline,
