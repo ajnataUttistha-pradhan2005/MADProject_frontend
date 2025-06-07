@@ -113,20 +113,14 @@ class _HomePageState extends State<HomePage> {
       socket.dispose();
     } catch (_) {}
 
-    // debugPrint("berfore chatId : $chatId");
-    // debugPrint("token : ${Globals.token}");
+    socket = IO.io('${Globals.websocketURI}?chatId=$chatId', <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': false,
 
-    socket = IO.io(
-      '${Globals.websocketURI}?chatId=$chatId', // 👈 Make URI unique
-      <String, dynamic>{
-        'transports': ['websocket'],
-        'autoConnect': false,
-        // 'query': {'token': Globals.token!, 'chatId': chatId},
-        'extraHeaders': {'token': Globals.token!},
-        'forceNew': true, // 👈 VERY IMPORTANT: Forces a new connection instance
-        'reconnection': false,
-      },
-    );
+      'extraHeaders': {'token': Globals.token!},
+      'forceNew': true, // 👈 VERY IMPORTANT: Forces a new connection instance
+      'reconnection': false,
+    });
 
     socket.connect();
 
@@ -165,43 +159,6 @@ class _HomePageState extends State<HomePage> {
     socket.onError((err) => debugPrint('⚠️ Error: $err'));
   }
 
-  // String fixBase64(String base64Str) {
-  //   int remainder = base64Str.length % 4;
-  //   if (remainder != 0) {
-  //     base64Str += '=' * (4 - remainder);
-  //   }
-  //   return base64Str;
-  // }
-
-  // /// Save base64 string as image in cache and return file path
-  // Future<String> saveBase64ToCache(String base64Str) async {
-  //   try {
-  //     debugPrint("👁️ ENTER saveBase64ToCache");
-
-  //     final fixedBase64 = fixBase64(base64Str);
-  //     final bytes = base64Decode(fixedBase64);
-  //     debugPrint("👁️ Decoded base64, byte length: ${bytes.length}");
-
-  //     final tempDir =
-  //         await getTemporaryDirectory(); // e.g., /data/user/0/com.example/cache
-  //     final folderId = const Uuid().v4();
-  //     final uniqueDir = Directory(path.join(tempDir.path, folderId));
-  //     await uniqueDir.create(recursive: true);
-
-  //     final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-  //     final filePath = path.join(uniqueDir.path, fileName);
-
-  //     final file = File(filePath);
-  //     await file.writeAsBytes(bytes, flush: true);
-  //     debugPrint("✅ File saved to: $filePath (exists? ${file.existsSync()})");
-
-  //     return file.path;
-  //   } catch (e) {
-  //     debugPrint('❌ Error saving base64 to cache: $e');
-  //     return '';
-  //   }
-  // }
-
   Future<void> _loadChat(ChatConversation chat) async {
     if (_currentChat?.id != chat.id) {
       socket.dispose(); // Disconnect existing socket
@@ -214,7 +171,6 @@ class _HomePageState extends State<HomePage> {
         if (msg.type == 'image') {
           debugPrint("🖼️ Processing image message: ${msg.content}");
 
-          // Case 1: It's a local file path
           if (msg.content is String && msg.content.toString().startsWith('/')) {
             final file = File(msg.content);
             if (await file.exists()) {
@@ -227,9 +183,7 @@ class _HomePageState extends State<HomePage> {
             } else {
               debugPrint("🚫 File does not exist: ${file.path}");
             }
-          }
-          // Case 2: It's a URL
-          else if (msg.content is String &&
+          } else if (msg.content is String &&
               msg.content.toString().startsWith('http')) {
             debugPrint("🌐 Image URL detected: ${msg.content}");
             processedMessages.add({
@@ -237,14 +191,10 @@ class _HomePageState extends State<HomePage> {
               'content': msg.content, // String URL
               'fromUser': msg.fromUser,
             });
-          }
-          // Case 3: Invalid image content
-          else {
+          } else {
             debugPrint("❌ Invalid image content: ${msg.content}");
           }
-        }
-        // Handle text
-        else {
+        } else {
           debugPrint("💬 Received text: ${msg.content}");
           processedMessages.add({
             'type': 'text',
@@ -254,12 +204,11 @@ class _HomePageState extends State<HomePage> {
         }
       } catch (e, stack) {
         debugPrint("❗ Error processing message: $e\n$stack");
-        // Skip this message gracefully
+
         continue;
       }
     }
 
-    // Update UI and local storage
     setState(() {
       _currentChat = chat;
       _messages.clear();
@@ -462,9 +411,6 @@ class _HomePageState extends State<HomePage> {
         final isPinned = data['isPinned'] as bool;
         debugPrint('📌 Chat pin status updated: $isPinned');
 
-        // Optional: Reload chats if needed to ensure sync
-        // await _checkAndLoadChats();
-
         return isPinned;
       } else {
         debugPrint('❌ Failed to toggle pin: ${response.body}');
@@ -509,7 +455,8 @@ class _HomePageState extends State<HomePage> {
       child: Text(
         title,
         style: const TextStyle(
-          color: Colors.white70,
+          // color: Colors.white70,
+          color: Colors.black87,
           fontSize: 14,
           fontFamily: "LexendDeca",
           fontWeight: FontWeight.w600,
@@ -520,10 +467,10 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildDrawerItem(String title, IconData icon) {
     return ListTile(
-      leading: Icon(icon, color: Colors.white70),
+      leading: Icon(icon, color: Colors.black45),
       title: Text(
         title,
-        style: const TextStyle(color: Colors.white, fontFamily: "LexendDeca"),
+        style: const TextStyle(color: Colors.black, fontFamily: "LexendDeca"),
       ),
       onTap: () {
         FocusScope.of(context).unfocus();
@@ -538,11 +485,11 @@ class _HomePageState extends State<HomePage> {
     final recent = _chatHistory.where((c) => !c.isPinned).toList();
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.white,
 
       // 🍔 Drawer
       drawer: Drawer(
-        backgroundColor: const Color(0xFF121212),
+        backgroundColor: const Color.fromARGB(255, 239, 239, 239),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -553,21 +500,21 @@ class _HomePageState extends State<HomePage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      "Conversations",
+                      "Discussions",
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Colors.black,
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         fontFamily: "LexendDeca",
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.add, color: Colors.white),
+                      icon: const Icon(Icons.add, color: Colors.black),
                       onPressed: () async {
                         final newChat = ChatConversation(
                           userId: Globals.userId,
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          title: 'New Chat', // Changed from 'Chat X'
+                          title: 'New Chat',
                           messages: [],
                         );
                         setState(() {
@@ -590,19 +537,24 @@ class _HomePageState extends State<HomePage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: Colors.grey[900],
+                    color: const Color.fromARGB(255, 212, 211, 211),
+                    border: Border.all(
+                      color: const Color.fromARGB(255, 168, 168, 168),
+                      width: 0.5,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const TextField(
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: Colors.black),
                     decoration: InputDecoration(
                       hintText: "Search chats",
                       hintStyle: TextStyle(
-                        color: Colors.white54,
+                        color: Colors.black54,
                         fontFamily: "LexendDeca",
                       ),
                       border: InputBorder.none,
-                      icon: Icon(Icons.search, color: Colors.white54),
+
+                      icon: Icon(Icons.search, color: Colors.black54),
                     ),
                   ),
                 ),
@@ -611,19 +563,22 @@ class _HomePageState extends State<HomePage> {
 
               // Pinned section
               if (pinned.isNotEmpty) ...[
-                _buildDrawerSectionTitle("📌 Pinned"),
+                _buildDrawerSectionTitle("Pinned"),
                 ...pinned.map((chat) {
                   return ListTile(
-                    leading: const Icon(Icons.star, color: Colors.amber),
+                    leading: const Icon(
+                      Icons.push_pin_sharp,
+                      color: Color.fromARGB(255, 255, 7, 7),
+                    ),
                     title: Text(
                       chat.title,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: Colors.black,
                         fontFamily: "LexendDeca",
                       ),
                     ),
                     trailing: PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert, color: Colors.white70),
+                      icon: const Icon(Icons.more_vert, color: Colors.black87),
                       onSelected: (value) async {
                         if (value == 'rename') {
                           final newName = await _showRenameDialog(chat.title);
@@ -707,11 +662,11 @@ class _HomePageState extends State<HomePage> {
                     },
                   );
                 }).toList(),
-                const Divider(color: Colors.white24),
+                const Divider(color: Colors.black38),
               ],
 
               // Recent section
-              _buildDrawerSectionTitle("🕒 Recent"),
+              _buildDrawerSectionTitle("Recent"),
               Expanded(
                 child:
                     recent.isNotEmpty
@@ -725,20 +680,21 @@ class _HomePageState extends State<HomePage> {
                             final chat = reversedRecent[index];
                             return ListTile(
                               leading: const Icon(
-                                Icons.chat_bubble_outline,
-                                color: Colors.white70,
+                                Icons.forum,
+
+                                color: Colors.black87,
                               ),
                               title: Text(
                                 chat.title,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: Colors.black87,
                                   fontFamily: "LexendDeca",
                                 ),
                               ),
                               trailing: PopupMenuButton<String>(
                                 icon: const Icon(
                                   Icons.more_vert,
-                                  color: Colors.white70,
+                                  color: Colors.black87,
                                 ),
                                 onSelected: (value) async {
                                   if (value == 'rename') {
@@ -839,7 +795,7 @@ class _HomePageState extends State<HomePage> {
                           child: Text(
                             "No more chats yet",
                             style: TextStyle(
-                              color: Colors.grey,
+                              color: Color.fromARGB(207, 0, 0, 0),
                               fontSize: 16,
                               fontFamily: "LexendDeca",
                             ),
@@ -857,7 +813,7 @@ class _HomePageState extends State<HomePage> {
           builder:
               (context) => IconButton(
                 icon: SvgPicture.asset(
-                  "assets/icons/menu.svg",
+                  "assets/icons/menuBlack.svg",
                   height: 31,
                   width: 37,
                 ),
@@ -912,77 +868,18 @@ class _HomePageState extends State<HomePage> {
                         );
                       }
 
-                      // final message = _messages[index];
-                      // final isUser = message['fromUser'] ?? false;
-                      // final type = message['type'];
-                      // final content = message['content'];
-
-                      // return Align(
-                      //   alignment:
-                      //       isUser
-                      //           ? Alignment.centerRight
-                      //           : Alignment.centerLeft,
-                      //   child: Padding(
-                      //     padding: const EdgeInsets.symmetric(vertical: 5),
-                      //     child:
-                      //         type == 'text'
-                      //             ? Container(
-                      //               padding: const EdgeInsets.all(12),
-                      //               decoration: BoxDecoration(
-                      //                 color:
-                      //                     isUser
-                      //                         ? const Color(0xFF29292B)
-                      //                         : Colors.transparent,
-                      //                 borderRadius: BorderRadius.circular(20),
-                      //               ),
-                      //               child: Text(
-                      //                 content,
-                      //                 style: TextStyle(
-                      //                   color:
-                      //                       isUser
-                      //                           ? const Color(0xFFB3B3B3)
-                      //                           : Colors.white,
-                      //                   fontFamily: "LexendDeca",
-                      //                   fontWeight: FontWeight.w700,
-                      //                   fontSize: 15,
-                      //                 ),
-                      //               ),
-                      //             )
-                      //             : ClipRRect(
-                      //               borderRadius: BorderRadius.circular(20),
-                      //               child: GestureDetector(
-                      //                 onTap: () {
-                      //                   Navigator.push(
-                      //                     context,
-                      //                     MaterialPageRoute(
-                      //                       builder:
-                      //                           (_) => ImageViewerPage(
-                      //                             imageFile: content,
-                      //                           ),
-                      //                     ),
-                      //                   );
-                      //                 },
-                      //                 child: Image.file(
-                      //                   content as File,
-                      //                   width: 200,
-                      //                 ),
-                      //               ),
-                      //             ),
-                      //   ),
-                      // );
                       final message = _messages[index];
                       final isUser = message['fromUser'] ?? false;
                       final type = message['type'];
                       final contentRaw = message['content'];
 
-                      // Safely handle different types
                       String contentStr = '';
                       if (contentRaw is String) {
                         contentStr = contentRaw.trim();
                       } else if (contentRaw is File) {
                         contentStr = contentRaw.path;
                       } else {
-                        contentStr = contentRaw.toString().trim(); // Fallback
+                        contentStr = contentRaw.toString().trim();
                       }
 
                       return Align(
@@ -999,7 +896,12 @@ class _HomePageState extends State<HomePage> {
                                     decoration: BoxDecoration(
                                       color:
                                           isUser
-                                              ? const Color(0xFF29292B)
+                                              ? const Color.fromARGB(
+                                                255,
+                                                215,
+                                                215,
+                                                215,
+                                              )
                                               : Colors.transparent,
                                       borderRadius: BorderRadius.circular(20),
                                     ),
@@ -1008,8 +910,8 @@ class _HomePageState extends State<HomePage> {
                                       style: TextStyle(
                                         color:
                                             isUser
-                                                ? const Color(0xFFB3B3B3)
-                                                : Colors.white,
+                                                ? Colors.black87
+                                                : Colors.black,
                                         fontFamily: "LexendDeca",
                                         fontWeight: FontWeight.w700,
                                         fontSize: 15,

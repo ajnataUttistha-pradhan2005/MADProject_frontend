@@ -136,10 +136,12 @@ class _ProfilePageState extends State<ProfilePage>
       fontWeight: FontWeight.w600,
     );
 
-    const twitterBlue = Color(0xFF1DA1F2);
+    // const twitterBlue = Color(0xFF1DA1F2);
+    const ytRed = Color.fromARGB(255, 255, 0, 51);
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+      // backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: AnimatedBuilder(
           animation: _logoutAnimController,
@@ -159,22 +161,27 @@ class _ProfilePageState extends State<ProfilePage>
               children: [
                 Row(
                   children: [
-                    BackButton(color: Colors.white),
+                    // BackButton(color: Colors.white),
+                    BackButton(color: Colors.black),
                     const Spacer(),
                     ShaderMask(
                       shaderCallback:
                           (bounds) => const LinearGradient(
                             colors: [
-                              Color.fromARGB(255, 141, 141, 144),
-                              Colors.white,
+                              // Color.fromARGB(255, 141, 141, 144),
+                              // Colors.white,
+                              Color.fromARGB(255, 0, 0, 0),
+                              Color.fromARGB(255, 0, 0, 0),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ).createShader(bounds),
                       child: Text(
-                        'PROFILE',
+                        // 'PROFILE',
+                        'Profile',
                         style: baseTextStyle.copyWith(
-                          fontSize: 26,
+                          // fontSize: 26,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 2,
                         ),
@@ -184,9 +191,11 @@ class _ProfilePageState extends State<ProfilePage>
                     IconButton(
                       icon: Icon(
                         _isEditing
-                            ? Icons.check_circle_outline
-                            : Icons.edit_outlined,
-                        color: twitterBlue,
+                            // ? Icons.check_circle_outline
+                            // : Icons.edit_outlined,
+                            ? Icons.check_rounded
+                            : Icons.edit_note,
+                        color: const Color.fromARGB(255, 1, 45, 13),
                       ),
                       onPressed: () => setState(() => _isEditing = !_isEditing),
                       tooltip: _isEditing ? 'Save' : 'Edit',
@@ -226,7 +235,8 @@ class _ProfilePageState extends State<ProfilePage>
                     style: baseTextStyle.copyWith(
                       fontSize: 13,
                       fontStyle: FontStyle.italic,
-                      color: Colors.grey[600],
+                      // color: Colors.grey[600],
+                      color: const Color.fromARGB(255, 31, 31, 31),
                     ),
                   ),
                 ),
@@ -268,7 +278,7 @@ class _ProfilePageState extends State<ProfilePage>
                                   ),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: twitterBlue,
+                                  backgroundColor: ytRed,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 36,
                                     vertical: 14,
@@ -294,11 +304,17 @@ class _ProfilePageState extends State<ProfilePage>
                                 margin: const EdgeInsets.only(top: 10),
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
+                                    // colors: [
+                                    //   Color(0xFFED1D20),
+                                    //   Color(0xFFBA1A73),
+                                    //   Color(0xFFA0199D),
+                                    //   Color(0xFF2B41D4),
+                                    // ],
                                     colors: [
-                                      Color(0xFFED1D20),
-                                      Color(0xFFBA1A73),
-                                      Color(0xFFA0199D),
-                                      Color(0xFF2B41D4),
+                                      Color(0xFF1D8CED), // Base bright blue
+                                      Color(0xFF2A7BD9), // Slightly darker blue
+                                      Color(0xFF1A5CBF), // Medium blue
+                                      Color(0xFF0F3B8A), // Dark blue shade
                                     ],
                                     stops: [
                                       (_gradientController.value - 0.3).clamp(
@@ -321,7 +337,7 @@ class _ProfilePageState extends State<ProfilePage>
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                   ),
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.circular(13),
                                 ),
                                 child: Center(
                                   child: Text(
@@ -360,15 +376,20 @@ class _ProfilePageState extends State<ProfilePage>
       child: TextField(
         enabled: enabled,
         controller: controller,
-        style: const TextStyle(color: Colors.white70, fontSize: 17),
+        // style: const TextStyle(color: Colors.white70, fontSize: 17),
+        style: const TextStyle(color: Colors.black87, fontSize: 17),
         decoration: InputDecoration(
           labelText: label.toUpperCase(),
           labelStyle: const TextStyle(
-            color: Colors.grey,
+            // color: Colors.grey,
+            color: Colors.black87,
             letterSpacing: 1.3,
-            fontWeight: FontWeight.w600,
+            // fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
-          fillColor: const Color(0xFF1E1E1E),
+          // fillColor: const Color(0xFF1E1E1E),
+          fillColor: const Color.fromARGB(255, 239, 239, 239),
+
           filled: true,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 18,

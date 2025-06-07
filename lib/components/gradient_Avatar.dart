@@ -16,10 +16,16 @@ class GradientAvatar extends StatelessWidget {
     this.isFile = false,
     this.size = 80,
     this.borderWidth = 4,
+    // this.gradientColors = const [
+    //   Color(0xFF1D7DFA),
+    //   Color(0xFF8617C7),
+    //   Color.fromARGB(255, 213, 14, 18),
+    // ],
     this.gradientColors = const [
-      Color(0xFF1D7DFA),
-      Color(0xFF8617C7),
-      Color.fromARGB(255, 213, 14, 18),
+      Color(0xFF007ACC), // Vivid Blue
+      Color(0xFF00B8D9), // Cyan Blue
+      Color(0xFF00D1A0), // Mint Green
+      Color(0xFF12C2E9), // Aqua
     ],
   });
 

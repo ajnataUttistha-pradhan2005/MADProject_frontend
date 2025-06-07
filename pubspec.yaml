@@ -66,11 +66,11 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icons/solveBaseLogo.png"
+  image_path: "assets/icons/NumTutorLogo.png"
 
 flutter_native_splash:
-  color: "#000000"  # Dark background
-  image: assets/icons/solveBaseLogo.png  # Center splash image
+  color: "#FFFFFF"  # white background
+  image: assets/icons/NumTutorLogo.png  # Center splash image
   android_gravity: center
   ios_content_mode: center
   fullscreen: true

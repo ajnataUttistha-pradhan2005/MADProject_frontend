@@ -16,8 +16,10 @@ class LoadingWidget extends StatelessWidget {
       children: [
         // Shimmer effect for "Crunching numbers"
         Shimmer.fromColors(
-          baseColor: const Color.fromARGB(148, 46, 35, 197),
-          highlightColor: const Color.fromARGB(191, 219, 11, 21),
+          // baseColor: const Color.fromARGB(148, 46, 35, 197),
+          // highlightColor: const Color.fromARGB(191, 219, 11, 21),
+          baseColor: const Color.fromARGB(194, 26, 105, 252),
+          highlightColor: const Color.fromARGB(227, 33, 239, 167),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
@@ -25,7 +27,8 @@ class LoadingWidget extends StatelessWidget {
                 width: 16.0,
               ), // Adds space between the left edge and the text
               Text(
-                'Crunching numbers....',
+                // 'Crunching numbers....',
+                'Putting numbers to work...',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
             ],

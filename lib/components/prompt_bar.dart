@@ -12,7 +12,7 @@ class PromptBar extends StatefulWidget {
   final void Function(dynamic) onSend;
   final bool isLoading;
   final void Function(bool)? onFocusChange;
-  final FocusNode focusNode; // Add FocusNode to manage focus explicitly
+  final FocusNode focusNode;
 
   const PromptBar({
     super.key,
@@ -20,7 +20,7 @@ class PromptBar extends StatefulWidget {
     required this.onSend,
     this.isLoading = false,
     this.onFocusChange,
-    required this.focusNode, // Receive FocusNode here
+    required this.focusNode,
   });
 
   @override
@@ -35,66 +35,85 @@ class _PromptBarState extends State<PromptBar> {
       color: Colors.transparent,
       child: Row(
         children: [
+          // Expanded Text Field
           Expanded(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1B1F),
-                borderRadius: BorderRadius.circular(25),
-                border: Border.all(color: const Color(0xFF636363)),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color.fromARGB(255, 107, 107, 107),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.shade200,
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 120),
                 child: TextField(
                   controller: widget.controller,
-                  focusNode: widget.focusNode, // Pass FocusNode here
+                  focusNode: widget.focusNode,
                   maxLines: null,
-                  style: const TextStyle(
-                    color: Color.fromARGB(255, 207, 206, 206),
-                  ),
+                  style: const TextStyle(color: Colors.black87),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
-                    hintText: "Enter your Problem...",
-                    hintStyle: TextStyle(color: Color(0xFFB3B3B3)),
+                    hintText: "Type your question here...",
+                    hintStyle: TextStyle(color: Color.fromARGB(200, 3, 3, 3)),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () {
-              if (widget.controller.text.trim().isNotEmpty) {
-                widget.onSend(widget.controller.text.trim());
-                widget.controller.clear();
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.greenAccent,
+
+          const SizedBox(width: 10),
+
+          // Attach Button
+          Material(
+            color: Colors.transparent,
+            child: Ink(
+              decoration: const ShapeDecoration(
+                color: Color.fromARGB(255, 230, 19, 3),
+                shape: CircleBorder(),
               ),
-              child: Icon(
-                widget.isLoading ? Icons.pause : Icons.send,
-                color: Colors.black,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.attach_file_rounded,
+                  color: Colors.white,
+                ),
+                onPressed: () {
+                  widget.focusNode.unfocus();
+                  _showMediaOptions(context);
+                },
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () {
-              widget.focusNode
-                  .unfocus(); // Unfocus keyboard when media options are tapped
-              _showMediaOptions(context);
-            },
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.blueAccent,
+
+          const SizedBox(width: 6),
+          // Send Button
+          Material(
+            color: Colors.transparent,
+            child: Ink(
+              decoration: const ShapeDecoration(
+                color: Color(0xFF0077FF),
+                shape: CircleBorder(),
               ),
-              child: const Icon(Icons.attach_file, color: Colors.white),
+              child: IconButton(
+                icon: Icon(
+                  widget.isLoading ? Icons.pause : Icons.send_rounded,
+                  color: Colors.white,
+                ),
+                onPressed: () {
+                  if (widget.controller.text.trim().isNotEmpty) {
+                    widget.onSend(widget.controller.text.trim());
+                    widget.controller.clear();
+                  }
+                },
+              ),
             ),
           ),
         ],
@@ -105,33 +124,26 @@ class _PromptBarState extends State<PromptBar> {
   void _showMediaOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey[850],
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (BuildContext context) {
-        return Container(
-          height: 135,
-          decoration: BoxDecoration(
-            color: Colors.grey[850],
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
+        return SizedBox(
+          height: 150,
           child: Column(
             children: [
               ListTile(
-                leading: const Icon(Icons.camera_alt, color: Colors.white),
-                title: const Text(
-                  'Use Camera',
-                  style: TextStyle(color: Colors.white),
-                ),
+                leading: const Icon(Icons.camera_alt, color: Colors.black87),
+                title: const Text('Take Photo'),
                 onTap: () {
                   Navigator.pop(context);
                   _pickMedia(context, ImageSource.camera);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo, color: Colors.white),
-                title: const Text(
-                  'From Gallery',
-                  style: TextStyle(color: Colors.white),
-                ),
+                leading: const Icon(Icons.photo, color: Colors.black87),
+                title: const Text('Choose from Gallery'),
                 onTap: () {
                   Navigator.pop(context);
                   _pickMedia(context, ImageSource.gallery);
@@ -143,30 +155,6 @@ class _PromptBarState extends State<PromptBar> {
       },
     );
   }
-
-  // void _pickMedia(BuildContext context, ImageSource source) async {
-  //   final ImagePicker picker = ImagePicker();
-  //   final XFile? pickedFile = await picker.pickImage(source: source);
-
-  //   if (pickedFile != null) {
-  //     File imageFile = File(pickedFile.path);
-
-  //     if (source == ImageSource.camera) {
-  //       Uint8List fileBytes = await imageFile.readAsBytes();
-  //       String fileName =
-  //           'captured_${DateTime.now().millisecondsSinceEpoch}${path.extension(pickedFile.path)}';
-  //       await SaverGallery.saveImage(
-  //         fileBytes,
-  //         fileName: fileName,
-  //         skipIfExists: false,
-  //       );
-  //     }
-
-  //     widget.onSend(imageFile); // ✅ Send image to HomePage
-  //   } else {
-  //     print("No image selected");
-  //   }
-  // }
 
   void _pickMedia(BuildContext context, ImageSource source) async {
     try {
