@@ -350,21 +350,23 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
+          backgroundColor: const Color.fromARGB(255, 249, 249, 249),
           title: const Text(
             'Rename Chat',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: Color.fromARGB(255, 28, 28, 28)),
           ),
           content: TextField(
             controller: controller,
             autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            cursorColor: Colors.white,
+            style: const TextStyle(color: Color.fromARGB(255, 18, 18, 18)),
+            cursorColor: const Color.fromARGB(255, 16, 15, 15),
             decoration: InputDecoration(
               filled: true,
-              fillColor: const Color(0xFF2C2C2C),
+              fillColor: const Color.fromARGB(255, 201, 201, 201),
               hintText: 'Enter new name',
-              hintStyle: const TextStyle(color: Colors.white54),
+              hintStyle: const TextStyle(
+                color: Color.fromARGB(137, 44, 43, 43),
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
@@ -376,15 +378,18 @@ class _HomePageState extends State<HomePage> {
               onPressed: () => Navigator.pop(context),
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: Colors.white70),
+                style: TextStyle(color: Color.fromARGB(219, 0, 0, 0)),
               ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 227, 230, 227),
+                backgroundColor: const Color.fromARGB(255, 6, 6, 6),
               ),
               onPressed: () => Navigator.pop(context, controller.text),
-              child: const Text('Rename'),
+              child: const Text(
+                'Rename',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         );
